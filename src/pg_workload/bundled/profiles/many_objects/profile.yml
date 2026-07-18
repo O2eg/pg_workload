@@ -1,0 +1,21 @@
+api_version: pg_workload/v1
+name: many_objects
+schema: many_objects
+description: Metadata-heavy workload with many schemas, partitions, and subpartitions.
+requires_write: true
+prepare:
+  steps:
+    - type: sql
+      path: sql/prepare_schema_01.sql
+    - type: sql
+      path: sql/prepare_schema_02.sql
+      repeat: 5
+jobs:
+  - name: metadata_scan
+    type: pgbench
+    interval: 600
+    log: metadata_scan.log
+    no_vacuum: true
+    clients: 2
+    threads: 2
+    transactions: 5

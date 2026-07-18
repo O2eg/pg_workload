@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Build and release
+/build/
+/dist/
+
+# Initialized runtime workspace (canonical assets live under src/pg_workload/bundled)
+/data/
+/schema/
+/state/
+*.log
+*.log.*
+*.pid
+*.lock
+
+# External datasets and generated archives anywhere else
+*.csv
+*.csv.gz
+*.tar
+*.tar.gz
+*.zip
+pagila-insert-data.sql

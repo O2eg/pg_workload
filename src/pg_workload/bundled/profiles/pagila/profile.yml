@@ -1,0 +1,33 @@
+api_version: pg_workload/v1
+name: pagila
+schema: pagila
+description: Mixed OLTP workload based on the Pagila DVD-rental schema.
+requires_write: true
+prepare:
+  steps:
+    - type: sql
+      path: sql/pagila-schema.sql
+    - type: generator
+      path: generator.py
+    - type: sql
+      command: "REFRESH MATERIALIZED VIEW pagila.rental_by_category; ANALYZE pagila.customer;"
+jobs:
+  - name: main
+    type: pgbench
+    interval: 60
+    log: main.log
+    recover_on_failure: false
+    no_vacuum: true
+    clients: 2
+    threads: 2
+    transactions: 5
+  - name: analyze_customer
+    type: psql
+    interval: 60
+    log: analyze_customer.log
+    command: "analyze pagila.customer;"
+  - name: refresh_rental_by_category
+    type: psql
+    interval: 1800
+    log: refresh_rental_by_category.log
+    command: "REFRESH MATERIALIZED VIEW pagila.rental_by_category;"

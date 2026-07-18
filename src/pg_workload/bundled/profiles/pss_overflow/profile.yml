@@ -1,0 +1,20 @@
+api_version: pg_workload/v1
+name: pss_overflow
+schema: pss_overflow
+description: Generates many distinct statements to churn pg_stat_statements.
+requires_write: false
+requires_preload_libraries:
+  - pg_stat_statements
+prepare:
+  steps:
+    - type: sql
+      path: sql/pss_overflow-schema.sql
+jobs:
+  - name: statement_churn
+    type: pgbench
+    interval: 60
+    log: statement_churn.log
+    no_vacuum: true
+    clients: 2
+    threads: 2
+    transactions: 5

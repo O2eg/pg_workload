@@ -1,0 +1,22 @@
+api_version: pg_workload/v1
+name: simple_stock_spec_symbols
+schema: simple_stock_spec_symbols
+description: CRUD workload with unusual identifiers, Unicode, and UI/parser edge cases.
+requires_write: true
+prepare:
+  steps:
+    - type: sql
+      path: sql/stock-schema.sql
+    - type: generator
+      path: generator.py
+    - type: sql
+      path: sql/indexes.sql
+jobs:
+  - name: main
+    type: pgbench
+    interval: 1800
+    log: main.log
+    no_vacuum: true
+    clients: 2
+    threads: 2
+    transactions: 5

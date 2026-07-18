@@ -1,0 +1,19 @@
+api_version: pg_workload/v1
+name: emulate_errors
+schema: emulate_errors
+description: Intentional PostgreSQL error generation workload.
+requires_write: true
+prepare:
+  steps:
+    - type: sql
+      path: sql/schema.sql
+jobs:
+  - name: errors
+    type: pgbench
+    interval: 60
+    log: errors.log
+    allow_failure: true
+    no_vacuum: true
+    clients: 2
+    threads: 2
+    transactions: 5

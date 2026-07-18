@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/O2eg/pg_workload/blob/main/src/pg_workload/bundled/schema/pg_workload-v1.schema.json",
+  "title": "pg_workload/v1 profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["api_version", "name", "jobs"],
+  "properties": {
+    "api_version": {"const": "pg_workload/v1"},
+    "name": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$"},
+    "schema": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
+    "description": {"type": "string"},
+    "requires_write": {"type": "boolean"},
+    "requires_preload_libraries": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "prepare": {"$ref": "#/$defs/prepare"},
+    "jobs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/job"}
+    }
+  },
+  "$defs": {
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "not": {"pattern": "(^/|(^|/)\\.\\.(/|$))"}
+    },
+    "stringList": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "prepare": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "steps": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/prepareStep"}
+        }
+      }
+    },
+    "prepareStep": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type"],
+          "properties": {
+            "type": {"const": "sql"},
+            "path": {"$ref": "#/$defs/relativePath"},
+            "command": {"type": "string", "minLength": 1},
+            "repeat": {"type": "integer", "minimum": 1},
+            "psql_args": {"$ref": "#/$defs/stringList"}
+          },
+          "oneOf": [
+            {"required": ["path"], "not": {"required": ["command"]}},
+            {"required": ["command"], "not": {"required": ["path"]}}
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "path"],
+          "properties": {
+            "type": {"const": "generator"},
+            "path": {
+              "allOf": [
+                {"$ref": "#/$defs/relativePath"},
+                {"pattern": "\\.py$"}
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "script": {
+      "oneOf": [
+        {"$ref": "#/$defs/relativePath"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path"],
+          "properties": {
+            "path": {"$ref": "#/$defs/relativePath"},
+            "weight": {"type": "integer", "minimum": 1}
+          }
+        }
+      ]
+    },
+    "job": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "type", "interval"],
+      "properties": {
+        "name": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$"},
+        "type": {"enum": ["pgbench", "psql"]},
+        "interval": {"type": "integer", "minimum": 1},
+        "log": {"$ref": "#/$defs/relativePath"},
+        "allow_failure": {"type": "boolean"},
+        "no_vacuum": {"type": "boolean"},
+        "recover_on_failure": {"type": "boolean"},
+        "clients": {"type": "integer", "minimum": 1},
+        "threads": {"type": "integer", "minimum": 1},
+        "duration": {"type": "integer", "minimum": 1},
+        "transactions": {"type": "integer", "minimum": 1},
+        "command": {"type": "string", "minLength": 1},
+        "scripts": {"type": "array", "items": {"$ref": "#/$defs/script"}},
+        "scripts_glob": {"$ref": "#/$defs/stringList"},
+        "auto_scripts_glob": {"$ref": "#/$defs/stringList"},
+        "extra_args": {"$ref": "#/$defs/stringList"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"type": {"const": "pgbench"}}},
+          "then": {
+            "oneOf": [
+              {"required": ["duration"], "not": {"required": ["transactions"]}},
+              {"required": ["transactions"], "not": {"required": ["duration"]}}
+            ],
+            "not": {
+              "anyOf": [
+                {"required": ["command"]},
+                {"required": ["scripts", "scripts_glob"]}
+              ]
+            }
+          }
+        },
+        {
+          "if": {"properties": {"type": {"const": "psql"}}},
+          "then": {
+            "required": ["command"],
+            "not": {
+              "anyOf": [
+                {"required": ["clients"]},
+                {"required": ["threads"]},
+                {"required": ["duration"]},
+                {"required": ["transactions"]},
+                {"required": ["scripts"]},
+                {"required": ["scripts_glob"]},
+                {"required": ["auto_scripts_glob"]}
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

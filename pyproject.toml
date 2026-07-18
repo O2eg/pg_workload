@@ -1,0 +1,81 @@
+[build-system]
+requires = ["setuptools>=77.0.3"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pg-workload"
+version = "0.1.0"
+description = "PostgreSQL workload profiles, runner, and desired-state scheduler."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
+authors = [
+  { name = "O2eg", email = "oleg.ispu@yandex.ru" }
+]
+keywords = ["postgresql", "pgbench", "benchmark", "workload", "performance"]
+dependencies = [
+  "PyYAML>=6.0,<7"
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Intended Audience :: System Administrators",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Database",
+  "Topic :: System :: Benchmark"
+]
+
+[project.urls]
+Homepage = "https://github.com/O2eg/pg_workload"
+Repository = "https://github.com/O2eg/pg_workload"
+Issues = "https://github.com/O2eg/pg_workload/issues"
+
+[project.optional-dependencies]
+test = [
+  "docker>=7.1.0,<8",
+  "pytest>=8.3,<9",
+  "tomli>=2.0; python_version < '3.11'"
+]
+dev = [
+  "build>=1.2,<2",
+  "docker>=7.1.0,<8",
+  "pytest>=8.3,<9",
+  "pytest-cov>=6,<8",
+  "ruff>=0.12,<1",
+  "tomli>=2.0; python_version < '3.11'",
+  "twine>=6,<7"
+]
+
+[project.scripts]
+pg-workload = "pg_workload.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+pg_workload = ["bundled/**/*"]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.format]
+quote-style = "double"

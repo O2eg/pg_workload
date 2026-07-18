@@ -1,0 +1,22 @@
+api_version: pg_workload/v1
+name: simple_stock
+schema: simple_stock
+description: Simple write-heavy CRUD workload over three related tables.
+requires_write: true
+prepare:
+  steps:
+    - type: sql
+      path: sql/stock-schema.sql
+    - type: generator
+      path: generator.py
+    - type: sql
+      path: sql/indexes.sql
+jobs:
+  - name: main
+    type: pgbench
+    interval: 60
+    log: main.log
+    no_vacuum: true
+    clients: 2
+    threads: 2
+    transactions: 1

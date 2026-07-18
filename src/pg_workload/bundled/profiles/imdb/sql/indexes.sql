@@ -1,0 +1,20 @@
+CREATE INDEX title_year_rating_idx ON imdb.title (production_year, rating DESC);
+CREATE INDEX title_kind_genre_idx ON imdb.title (kind_id, genre_id);
+CREATE INDEX cast_title_idx ON imdb.cast_info (title_id);
+CREATE INDEX cast_person_idx ON imdb.cast_info (person_id, title_id);
+CREATE INDEX movie_keyword_title_idx ON imdb.movie_keyword (title_id, keyword_id);
+CREATE INDEX movie_keyword_keyword_idx ON imdb.movie_keyword (keyword_id, title_id);
+CREATE INDEX movie_company_title_idx ON imdb.movie_company (title_id, company_id);
+CREATE INDEX movie_company_company_idx ON imdb.movie_company (company_id, title_id);
+CREATE INDEX movie_info_title_type_idx ON imdb.movie_info (title_id, info_type);
+
+ANALYZE imdb.kind_type;
+ANALYZE imdb.genre;
+ANALYZE imdb.company;
+ANALYZE imdb.person;
+ANALYZE imdb.keyword;
+ANALYZE imdb.title;
+ANALYZE imdb.cast_info;
+ANALYZE imdb.movie_keyword;
+ANALYZE imdb.movie_company;
+ANALYZE imdb.movie_info;
