@@ -129,6 +129,7 @@ class PgClient:
                 env=env,
                 input=input_text,
                 text=input_text is not None,
+                stdout=sys.stderr if self.config.machine_output else None,
             )
 
         if proc.returncode != 0 and allow_failure:

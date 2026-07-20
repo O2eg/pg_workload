@@ -1,7 +1,8 @@
 # pg-workload
 
-`pg-workload` installs, validates, prepares, runs, and schedules declarative PostgreSQL workload
-profiles. It is the workload component in the PostgreSQL test flow:
+`pg-workload` emulates PostgreSQL backend activity that produces diverse query plans, logs, and
+runtime statistics for diagnostic observation. It installs, validates, runs, and schedules
+declarative activity profiles in the PostgreSQL test flow:
 
 ```text
 pg-stand -> pg-workload -> pg-diag report
@@ -47,8 +48,7 @@ Initialize another directory with:
 pg-workload init --directory /srv/pg-workload/lab
 ```
 
-The CLI can also be invoked as `python -m pg_workload`. The repository-level `workload.py` file is
-a source-checkout compatibility entry point and is not installed into the wheel.
+The CLI can also be invoked as `python -m pg_workload`.
 
 ### Install from source
 
@@ -363,6 +363,12 @@ The repository `.gitignore` excludes initialized root-level `data/`, `schema/`, 
 locks, dumps, archives, and CSV datasets. Canonical immutable profile sources live only in
 `src/pg_workload/bundled/` and are included in the wheel; generated table rows live only in the
 target PostgreSQL database.
+
+## Orchestrator integration
+
+The normal profile and scheduler CLI remains human-oriented. Authors of
+`pg_play`-compatible orchestrators can use the separate
+[versioned machine contract](docs/pg_play-integration.md).
 
 ## Development and release checks
 

@@ -430,3 +430,6 @@ def run_scheduler(
                 stop_timeout,
                 "scheduler exit",
             )
+            lock_handle.seek(0)
+            lock_handle.truncate()
+            lock_handle.flush()

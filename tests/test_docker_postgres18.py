@@ -13,7 +13,6 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
-WORKLOAD_PATH = ROOT / "workload.py"
 ENABLE_ENV = "WORKLOAD_DOCKER_INTEGRATION"
 TRUE_VALUES = {"1", "true", "yes", "y", "on"}
 
@@ -312,7 +311,7 @@ class DockerPostgres18SmokeTest(unittest.TestCase):
         raise RuntimeError(f"PostgreSQL did not become ready: {last_output}\n{logs}")
 
     def run_workload(self, args, timeout=300):
-        cmd = [sys.executable, str(WORKLOAD_PATH)] + args
+        cmd = [sys.executable, "-m", "pg_workload", *args]
         env = self.workload_env()
         proc = subprocess.run(
             cmd,
@@ -440,7 +439,8 @@ class DockerPostgres18SmokeTest(unittest.TestCase):
 
         cmd = [
             sys.executable,
-            str(WORKLOAD_PATH),
+            "-m",
+            "pg_workload",
             "scheduler",
             *self.target_args(),
             "--profile",

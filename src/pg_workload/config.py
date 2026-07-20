@@ -57,6 +57,7 @@ class RuntimeConfig:
     resource_cpu_max_pct: int = DEFAULT_RESOURCE_CPU_MAX_PCT
     resource_cpu_window_seconds: int = DEFAULT_RESOURCE_CPU_WINDOW_SECONDS
     resource_check_interval: int = DEFAULT_RESOURCE_CHECK_INTERVAL
+    machine_output: bool = False
 
     @property
     def psql(self) -> str:
@@ -157,4 +158,5 @@ def build_runtime_config(args: argparse.Namespace) -> RuntimeConfig:
         resource_cpu_max_pct=args.resource_cpu_max_pct,
         resource_cpu_window_seconds=args.resource_cpu_window_seconds,
         resource_check_interval=args.resource_check_interval,
+        machine_output=getattr(args, "machine", False),
     )

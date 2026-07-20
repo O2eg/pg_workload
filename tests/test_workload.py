@@ -1,8 +1,8 @@
 import argparse
 import contextlib
 import dataclasses
-import importlib.util
 import io
+import json
 import os
 import subprocess
 import sys
@@ -12,21 +12,20 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from pg_workload.cli import main
+
 try:
     import tomllib
 except ModuleNotFoundError:  # pragma: no cover - exercised on Python 3.10
     import tomli as tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
-WORKLOAD_PATH = ROOT / "workload.py"
 
 
 def load_module():
-    spec = importlib.util.spec_from_file_location("workload", WORKLOAD_PATH)
-    module = importlib.util.module_from_spec(spec)
-    sys.modules["workload"] = module
-    spec.loader.exec_module(module)
-    return module
+    import pg_workload
+
+    return pg_workload
 
 
 class WorkloadGeneratorTests(unittest.TestCase):
@@ -50,6 +49,129 @@ class WorkloadGeneratorTests(unittest.TestCase):
         config = self.workload.build_runtime_config(args)
         self.assertEqual(config.pg_major, "18")
         self.assertEqual(str(config.bin_dir), "/usr/lib/postgresql/18/bin")
+
+    def test_machine_plumbing_is_hidden_from_human_help(self):
+        help_text = self.workload.build_parser().format_help()
+
+        self.assertNotIn("--machine", help_text)
+        self.assertNotIn("--request-id", help_text)
+        self.assertNotIn("--component-capabilities", help_text)
+        self.assertIn("plan", help_text)
+        self.assertIn("start", help_text)
+        self.assertIn("status", help_text)
+        stdout = io.StringIO()
+        with self.assertRaises(SystemExit), contextlib.redirect_stdout(stdout):
+            main(["start", "--help"])
+        self.assertNotIn("--enable-selected", stdout.getvalue())
+
+    def test_machine_capabilities_use_versioned_envelope(self):
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            result = main(
+                [
+                    "--machine",
+                    "--request-id=workload-capabilities",
+                    "--component-capabilities",
+                ]
+            )
+
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(0, result)
+        self.assertEqual("pg_workload", payload["component"])
+        self.assertEqual("workload-capabilities", payload["request_id"])
+        self.assertEqual("succeeded", payload["status"])
+
+    def test_execution_plan_is_stable_and_changes_with_profile_content(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            self.workload.initialize_project(root)
+
+            def plan_hash(*, disk_max_used_pct: int = 90) -> str:
+                stdout = io.StringIO()
+                with contextlib.redirect_stdout(stdout):
+                    result = main(
+                        [
+                            "--machine",
+                            "plan",
+                            "--root",
+                            str(root),
+                            "--target=external",
+                            "--host=127.0.0.1",
+                            "--operation=run",
+                            "--profile=pagila",
+                            f"--resource-disk-max-used-pct={disk_max_used_pct}",
+                        ]
+                    )
+                self.assertEqual(0, result)
+                return json.loads(stdout.getvalue())["result"]["plan_hash"]
+
+            first = plan_hash()
+            self.assertEqual(first, plan_hash())
+            self.assertNotEqual(first, plan_hash(disk_max_used_pct=95))
+            profile = root / "data" / "pagila" / "profile.yml"
+            profile.write_text(
+                profile.read_text(encoding="utf-8") + "\n# local experiment\n",
+                encoding="utf-8",
+            )
+            self.assertNotEqual(first, plan_hash())
+
+    def test_detached_scheduler_has_owned_start_status_stop_lifecycle(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            self.workload.initialize_project(root)
+            stdout = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(stdout):
+                    planned_result = main(
+                        [
+                            "--machine",
+                            "plan",
+                            "--root",
+                            str(root),
+                            "--target=external",
+                            "--host=127.0.0.1",
+                            "--operation=scheduler",
+                            "--profile=pagila",
+                            "--enable-selected",
+                            "--run-immediately",
+                            "--dry-run",
+                        ]
+                    )
+                self.assertEqual(0, planned_result)
+                plan_hash = json.loads(stdout.getvalue())["result"]["plan_hash"]
+                stdout = io.StringIO()
+                with contextlib.redirect_stdout(stdout):
+                    result = main(
+                        [
+                            "--machine",
+                            "start",
+                            "--root",
+                            str(root),
+                            "--target=external",
+                            "--host=127.0.0.1",
+                            "--profile=pagila",
+                            "--enable-selected",
+                            "--run-immediately",
+                            "--plan-hash",
+                            plan_hash,
+                            "--dry-run",
+                        ]
+                    )
+                started = json.loads(stdout.getvalue())
+                self.assertEqual(0, result)
+                self.assertTrue(started["result"]["owned"])
+                self.assertTrue(started["result"]["running"])
+                self.assertTrue(
+                    self.workload.load_state(root / "state" / "workloads.yml")["profiles"]["pagila"]["enabled"]
+                )
+            finally:
+                stdout = io.StringIO()
+                with contextlib.redirect_stdout(stdout):
+                    stopped_result = main(["--machine", "stop", "--root", str(root), "--timeout=5"])
+                self.assertEqual(0, stopped_result)
+                stopped = json.loads(stdout.getvalue())["result"]
+                self.assertFalse(stopped["running"])
+                self.assertIsNone(stopped["stale_pid"])
 
     def test_package_and_cli_versions_match_project_metadata(self):
         metadata = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
@@ -382,6 +504,20 @@ class WorkloadGeneratorTests(unittest.TestCase):
                     allow_failure=True,
                 )
 
+    def test_machine_mode_routes_child_stdout_away_from_protocol_stdout(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = dataclasses.replace(
+                self.runtime_config_for_logs(tmpdir),
+                machine_output=True,
+            )
+            client = self.workload.PgClient(config)
+            completed = subprocess.CompletedProcess(["child"], 0)
+
+            with mock.patch("pg_workload.pg_client.subprocess.run", return_value=completed) as run:
+                client.run(["child"], env=os.environ.copy())
+
+            self.assertIs(run.call_args.kwargs["stdout"], sys.stderr)
+
     def test_validate_rejects_invalid_profile_contract(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             profile = self.workload.Profile(
@@ -540,7 +676,7 @@ class WorkloadGeneratorTests(unittest.TestCase):
     def test_cli_rejects_state_path_outside_project(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             with contextlib.redirect_stderr(io.StringIO()) as stderr:
-                result = self.workload.main(["state", "--root", tmpdir, "--state-file", "../outside.yml"])
+                result = main(["state", "--root", tmpdir, "--state-file", "../outside.yml"])
 
             self.assertEqual(result, 1)
             self.assertIn("must stay inside", stderr.getvalue())
@@ -884,7 +1020,8 @@ class WorkloadGeneratorTests(unittest.TestCase):
             proc = subprocess.Popen(
                 [
                     sys.executable,
-                    str(WORKLOAD_PATH),
+                    "-m",
+                    "pg_workload",
                     "scheduler",
                     "--root",
                     str(root),
@@ -932,7 +1069,8 @@ class WorkloadGeneratorTests(unittest.TestCase):
             proc = subprocess.Popen(
                 [
                     sys.executable,
-                    str(WORKLOAD_PATH),
+                    "-m",
+                    "pg_workload",
                     "scheduler",
                     "--root",
                     str(root),
@@ -1022,7 +1160,8 @@ class WorkloadGeneratorTests(unittest.TestCase):
             proc = subprocess.Popen(
                 [
                     sys.executable,
-                    str(WORKLOAD_PATH),
+                    "-m",
+                    "pg_workload",
                     "scheduler",
                     "--root",
                     str(root),

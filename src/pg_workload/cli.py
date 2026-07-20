@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
+import json
 import os
+import sys
 from pathlib import Path
 
 import yaml
@@ -32,6 +35,19 @@ from pg_workload.common import (
     resolve_relative_path,
 )
 from pg_workload.config import build_runtime_config
+from pg_workload.control import (
+    WorkloadOwnershipError,
+    scheduler_status,
+    start_scheduler,
+    stop_scheduler,
+)
+from pg_workload.orchestration import (
+    EXIT_CODES,
+    capabilities,
+    envelope,
+    execution_plan,
+    profile_descriptor,
+)
 from pg_workload.pg_client import PgClient
 from pg_workload.profiles import (
     Profile,
@@ -42,9 +58,10 @@ from pg_workload.profiles import (
 )
 from pg_workload.runner import install_profiles, prepare_database, run_job_once
 from pg_workload.scheduler import run_scheduler
-from pg_workload.state import load_state, update_job_state
+from pg_workload.state import enable_profiles, load_state, update_job_state
 
 DEFAULT_ROOT = "."
+DEFAULT_SCHEDULER_LOG_FILE = "state/scheduler.log"
 
 
 def _add_profile_filter(parser: argparse.ArgumentParser, *, required: bool = False) -> None:
@@ -210,10 +227,66 @@ def _add_prepare_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--preload-libraries", action="append", help="Required shared_preload_libraries entries")
 
 
+def _add_plan_guard(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--plan-hash",
+        help="execute only if the current deterministic plan still matches this hash",
+    )
+
+
+def _add_scheduler_args(parser: argparse.ArgumentParser) -> None:
+    _add_profile_filter(parser)
+    parser.add_argument(
+        "--enable-selected",
+        action="store_true",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument("--state-file", default=DEFAULT_STATE_FILE, help="State path relative to root")
+    parser.add_argument(
+        "--daemon-lock-file",
+        default=DEFAULT_DAEMON_LOCK_FILE,
+        help="Scheduler lock path relative to root",
+    )
+    parser.add_argument("--reload-interval", type=positive_int_arg, default=5, help="State reload interval")
+    parser.add_argument("--run-immediately", action="store_true", help="Run enabled jobs at scheduler start")
+    parser.add_argument(
+        "--recover-on-failure",
+        dest="recover_on_failure",
+        action="store_true",
+        default=True,
+        help="Reinstall a failed profile before its next run (default)",
+    )
+    parser.add_argument(
+        "--no-recover-on-failure",
+        dest="recover_on_failure",
+        action="store_false",
+        help="Disable automatic profile recovery",
+    )
+    parser.add_argument("--recover-interval", type=positive_int_arg, default=60, help="Recovery retry delay")
+    parser.add_argument("--stop-timeout", type=positive_int_arg, default=10, help="Child stop timeout")
+
+
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="pg-workload", description="PostgreSQL workload generator")
+    parser = argparse.ArgumentParser(
+        prog="pg-workload",
+        description="Emulate PostgreSQL backend activity for diagnostic observation",
+    )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    parser.add_argument(
+        "--machine",
+        action="store_true",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--request-id",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--component-capabilities",
+        action="store_true",
+        help=argparse.SUPPRESS,
+    )
+    subparsers = parser.add_subparsers(dest="command")
 
     init_cmd = subparsers.add_parser("init", help="Create or update a working project from packaged profiles")
     init_cmd.add_argument("--directory", default=DEFAULT_ROOT, help="Destination project directory")
@@ -228,11 +301,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     prepare_cmd = subparsers.add_parser("prepare-db", help="Create the workload database, role, and extensions")
     add_common_args(prepare_cmd)
+    _add_plan_guard(prepare_cmd)
     prepare_cmd.add_argument("--recreate", action="store_true", help="Drop and recreate the workload database")
     _add_prepare_args(prepare_cmd)
 
     install_cmd = subparsers.add_parser("install", help="Install selected profile schemas and data")
     add_common_args(install_cmd)
+    _add_plan_guard(install_cmd)
     _add_profile_filter(install_cmd, required=True)
     install_cmd.add_argument("--prepare-db", action="store_true", help="Run prepare-db before profile installation")
     install_cmd.add_argument("--recreate-db", action="store_true", help="Recreate database with --prepare-db")
@@ -240,33 +315,75 @@ def build_parser() -> argparse.ArgumentParser:
 
     run_cmd = subparsers.add_parser("run", help="Run selected profile jobs once")
     add_common_args(run_cmd)
+    _add_plan_guard(run_cmd)
     _add_profile_filter(run_cmd, required=True)
     run_cmd.add_argument("--job", action="append", help="Job name; repeat or use comma-separated names")
 
     scheduler_cmd = subparsers.add_parser("scheduler", help="Run the foreground desired-state scheduler")
     add_common_args(scheduler_cmd)
-    _add_profile_filter(scheduler_cmd)
-    scheduler_cmd.add_argument("--state-file", default=DEFAULT_STATE_FILE, help="State path relative to root")
-    scheduler_cmd.add_argument(
+    _add_scheduler_args(scheduler_cmd)
+    _add_plan_guard(scheduler_cmd)
+
+    start_cmd = subparsers.add_parser("start", help="Start the desired-state scheduler in the background")
+    add_common_args(start_cmd)
+    _add_scheduler_args(start_cmd)
+    _add_plan_guard(start_cmd)
+    start_cmd.add_argument(
+        "--scheduler-log-file",
+        default=DEFAULT_SCHEDULER_LOG_FILE,
+        help="Scheduler stdout/stderr path relative to root",
+    )
+    start_cmd.add_argument(
+        "--start-timeout",
+        type=positive_float_arg,
+        default=5.0,
+        help="Seconds to wait for scheduler lock acquisition",
+    )
+
+    status_cmd = subparsers.add_parser("status", help="Show scheduler and desired workload state")
+    status_cmd.add_argument("--root", default=DEFAULT_ROOT, help="Initialized project directory")
+    status_cmd.add_argument("--state-file", default=DEFAULT_STATE_FILE, help="State path relative to root")
+    status_cmd.add_argument(
         "--daemon-lock-file", default=DEFAULT_DAEMON_LOCK_FILE, help="Scheduler lock path relative to root"
     )
-    scheduler_cmd.add_argument("--reload-interval", type=positive_int_arg, default=5, help="State reload interval")
-    scheduler_cmd.add_argument("--run-immediately", action="store_true", help="Run enabled jobs at scheduler start")
-    scheduler_cmd.add_argument(
+    status_cmd.add_argument("--scheduler-log-file", default=DEFAULT_SCHEDULER_LOG_FILE)
+
+    stop_cmd = subparsers.add_parser("stop", help="Stop the owned background scheduler")
+    stop_cmd.add_argument("--root", default=DEFAULT_ROOT, help="Initialized project directory")
+    stop_cmd.add_argument("--daemon-lock-file", default=DEFAULT_DAEMON_LOCK_FILE)
+    stop_cmd.add_argument("--scheduler-log-file", default=DEFAULT_SCHEDULER_LOG_FILE)
+    stop_cmd.add_argument("--timeout", type=positive_float_arg, default=10.0)
+
+    plan_cmd = subparsers.add_parser("plan", help="Build a deterministic execution plan without connecting")
+    add_common_args(plan_cmd)
+    plan_cmd.add_argument(
+        "--operation",
+        choices=("prepare-db", "install", "run", "scheduler"),
+        default="run",
+    )
+    _add_profile_filter(plan_cmd)
+    plan_cmd.add_argument("--job", action="append", help="Job name for operation=run")
+    plan_cmd.add_argument("--recreate", action="store_true")
+    plan_cmd.add_argument("--prepare-db", action="store_true")
+    plan_cmd.add_argument("--recreate-db", action="store_true")
+    _add_prepare_args(plan_cmd)
+    plan_cmd.add_argument("--state-file", default=DEFAULT_STATE_FILE)
+    plan_cmd.add_argument("--daemon-lock-file", default=DEFAULT_DAEMON_LOCK_FILE)
+    plan_cmd.add_argument("--reload-interval", type=positive_int_arg, default=5)
+    plan_cmd.add_argument("--run-immediately", action="store_true")
+    plan_cmd.add_argument(
+        "--enable-selected",
+        action="store_true",
+        help=argparse.SUPPRESS,
+    )
+    plan_cmd.add_argument(
         "--recover-on-failure",
         dest="recover_on_failure",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
         default=True,
-        help="Reinstall a failed profile before its next run (default)",
     )
-    scheduler_cmd.add_argument(
-        "--no-recover-on-failure",
-        dest="recover_on_failure",
-        action="store_false",
-        help="Disable automatic profile recovery",
-    )
-    scheduler_cmd.add_argument("--recover-interval", type=positive_int_arg, default=60, help="Recovery retry delay")
-    scheduler_cmd.add_argument("--stop-timeout", type=positive_int_arg, default=10, help="Child stop timeout")
+    plan_cmd.add_argument("--recover-interval", type=positive_int_arg, default=60)
+    plan_cmd.add_argument("--stop-timeout", type=positive_int_arg, default=10)
 
     for command, help_text in (("enable", "Enable profile or job"), ("disable", "Disable profile or job")):
         control = subparsers.add_parser(command, help=help_text)
@@ -298,54 +415,231 @@ def _validated_selection(root: Path, names: list[str] | None) -> list[Profile]:
     return profiles
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
-    try:
-        if args.command == "init":
-            result = initialize_project(Path(args.directory), force=args.force)
+def _plan_for_args(args: argparse.Namespace, operation: str) -> dict[str, object]:
+    if operation == "prepare-db":
+        profiles = []
+    elif operation == "scheduler":
+        root = Path(args.root).resolve()
+        profiles = selected_profiles(load_profiles(root, allow_empty=True), args.profiles)
+        errors = [error for profile in profiles for error in validate_profile(profile)]
+        if errors:
+            raise WorkloadError("Invalid workload profiles:\n" + "\n".join(errors))
+    else:
+        profiles = _validated_selection(Path(args.root).resolve(), args.profiles)
+    return execution_plan(args, profiles, operation)
+
+
+def _verify_plan_hash(args: argparse.Namespace, operation: str) -> dict[str, object]:
+    plan = _plan_for_args(args, operation)
+    expected = getattr(args, "plan_hash", None)
+    if expected and expected != plan["plan_hash"]:
+        raise WorkloadError(f"Stale plan: expected {expected}, current plan is {plan['plan_hash']}")
+    return plan
+
+
+def _scheduler_paths(args: argparse.Namespace) -> tuple[Path, Path, Path]:
+    root = Path(args.root).resolve()
+    lock_path = resolve_relative_path(root, args.daemon_lock_file, "scheduler lock file")
+    log_path = resolve_relative_path(root, args.scheduler_log_file, "scheduler log file")
+    return root, lock_path, log_path
+
+
+def _status(args: argparse.Namespace) -> dict[str, object]:
+    root, lock_path, log_path = _scheduler_paths(args)
+    state_path = resolve_relative_path(root, args.state_file, "state file")
+    profiles = load_profiles(root, allow_empty=True)
+    return {
+        "schema_version": "pg_workload/status-v1",
+        "scheduler": scheduler_status(root, lock_path, log_path),
+        "desired_state": load_state(state_path),
+        "profiles": [profile_descriptor(profile) for profile in profiles.values()],
+    }
+
+
+def _emit_machine(
+    args: argparse.Namespace,
+    status: str,
+    *,
+    result: object = None,
+    artifacts: list[dict[str, object]] | None = None,
+    warnings: list[str] | None = None,
+    error: dict[str, object] | None = None,
+) -> None:
+    print(
+        json.dumps(
+            envelope(
+                args.command,
+                status,
+                request_id=args.request_id,
+                result=result,
+                artifacts=artifacts,
+                warnings=warnings,
+                error=error,
+            ),
+            indent=2,
+            sort_keys=True,
+        )
+    )
+
+
+def _run(args: argparse.Namespace) -> int:
+    if args.component_capabilities:
+        result = capabilities()
+        if args.machine:
+            original_command = args.command
+            args.command = "capabilities"
+            try:
+                _emit_machine(args, "succeeded", result=result)
+            finally:
+                args.command = original_command
+        else:
+            print(yaml.safe_dump(result, allow_unicode=True, sort_keys=False), end="")
+        return 0
+    if args.command == "init":
+        result = initialize_project(Path(args.directory), force=args.force)
+        if args.machine:
+            _emit_machine(
+                args,
+                "succeeded",
+                result=result,
+                artifacts=[
+                    {
+                        "kind": "WorkloadProject",
+                        "schema_version": "pg_workload/v1",
+                        "path": str(Path(args.directory).resolve()),
+                    }
+                ],
+            )
+        else:
             assets = result["assets"]
             print(
                 f"Initialized {result['root']} "
-                f"(created={assets['created']}, updated={assets['updated']}, unchanged={assets['unchanged']})"
+                f"(created={assets['created']}, updated={assets['updated']}, "
+                f"unchanged={assets['unchanged']})"
             )
-            return 0
-        if args.command == "profiles":
-            for profile in load_profiles(Path(args.root)).values():
+        return 0
+    if args.command == "profiles":
+        profiles = load_profiles(Path(args.root))
+        if args.machine:
+            _emit_machine(
+                args,
+                "succeeded",
+                result={
+                    "root": str(Path(args.root).resolve()),
+                    "profiles": [profile_descriptor(profile) for profile in profiles.values()],
+                },
+            )
+        else:
+            for profile in profiles.values():
                 print(f"{profile.name}\t{profile.data.get('description', '')}")
-            return 0
-        if args.command == "validate":
-            errors = [
-                error
-                for profile in selected_profiles(load_profiles(Path(args.root)), args.profiles)
-                for error in validate_profile(profile)
-            ]
-            if errors:
-                for error in errors:
-                    eprint(error)
-                return 1
-            print("OK")
-            return 0
-        if args.command in {"enable", "disable", "set-interval", "state"}:
-            root = Path(args.root).resolve()
-            state_path = resolve_relative_path(root, args.state_file, "state file")
-            if args.command == "enable":
-                validate_control_target(root, args.profile, args.job, strict=True)
-                update_job_state(state_path, args.profile, enabled=True, job_name=args.job, interval=args.interval)
-                print(f"Enabled {args.profile}{':' + args.job if args.job else ''}")
-            elif args.command == "disable":
-                validate_control_target(root, args.profile, args.job, strict=False)
-                update_job_state(state_path, args.profile, enabled=False, job_name=args.job)
-                print(f"Disabled {args.profile}{':' + args.job if args.job else ''}")
-            elif args.command == "set-interval":
-                validate_control_target(root, args.profile, args.job, strict=True)
-                update_job_state(state_path, args.profile, job_name=args.job, interval=args.seconds)
-                print(f"Set interval {args.profile}:{args.job} = {args.seconds}s")
+        return 0
+    if args.command == "validate":
+        profiles = selected_profiles(load_profiles(Path(args.root)), args.profiles)
+        errors = [error for profile in profiles for error in validate_profile(profile)]
+        if args.machine:
+            _emit_machine(
+                args,
+                "failed" if errors else "succeeded",
+                result={
+                    "valid": not errors,
+                    "errors": errors,
+                    "profiles": [profile_descriptor(profile) for profile in profiles],
+                },
+                error=({"code": "validation_error", "message": "profile validation failed"} if errors else None),
+            )
+            return EXIT_CODES["validation_error"] if errors else 0
+        if errors:
+            for error in errors:
+                eprint(error)
+            return 1
+        print("OK")
+        return 0
+    if args.command == "plan":
+        result = _plan_for_args(args, args.operation)
+        if args.machine:
+            _emit_machine(args, "planned", result=result)
+        else:
+            print(yaml.safe_dump(result, allow_unicode=True, sort_keys=False), end="")
+        return 0
+    if args.command == "status":
+        result = _status(args)
+        if args.machine:
+            _emit_machine(args, "succeeded", result=result)
+        else:
+            print(yaml.safe_dump(result, allow_unicode=True, sort_keys=False), end="")
+        return 0
+    if args.command == "stop":
+        root, lock_path, log_path = _scheduler_paths(args)
+        result = stop_scheduler(root, lock_path, log_path, args.timeout)
+        if args.machine:
+            _emit_machine(args, "succeeded", result=result)
+        else:
+            print(yaml.safe_dump(result, allow_unicode=True, sort_keys=False), end="")
+        return 0
+    if args.command in {"enable", "disable", "set-interval", "state"}:
+        root = Path(args.root).resolve()
+        state_path = resolve_relative_path(root, args.state_file, "state file")
+        if args.command == "enable":
+            validate_control_target(root, args.profile, args.job, strict=True)
+            update_job_state(
+                state_path,
+                args.profile,
+                enabled=True,
+                job_name=args.job,
+                interval=args.interval,
+            )
+            message = f"Enabled {args.profile}{':' + args.job if args.job else ''}"
+        elif args.command == "disable":
+            validate_control_target(root, args.profile, args.job, strict=False)
+            update_job_state(state_path, args.profile, enabled=False, job_name=args.job)
+            message = f"Disabled {args.profile}{':' + args.job if args.job else ''}"
+        elif args.command == "set-interval":
+            validate_control_target(root, args.profile, args.job, strict=True)
+            update_job_state(
+                state_path,
+                args.profile,
+                job_name=args.job,
+                interval=args.seconds,
+            )
+            message = f"Set interval {args.profile}:{args.job} = {args.seconds}s"
+        else:
+            result = load_state(state_path)
+            if args.machine:
+                _emit_machine(args, "succeeded", result=result)
             else:
-                print(yaml.safe_dump(load_state(state_path), allow_unicode=True, sort_keys=True), end="")
+                print(yaml.safe_dump(result, allow_unicode=True, sort_keys=True), end="")
             return 0
+        if args.machine:
+            _emit_machine(
+                args,
+                "succeeded",
+                result={"message": message, "desired_state": load_state(state_path)},
+            )
+        else:
+            print(message)
+        return 0
 
-        config = build_runtime_config(args)
-        client = PgClient(config)
+    operation = "scheduler" if args.command in {"scheduler", "start"} else args.command
+    plan = _verify_plan_hash(args, operation)
+    if operation == "scheduler" and args.enable_selected:
+        root = Path(args.root).resolve()
+        profiles = selected_profiles(load_profiles(root, allow_empty=True), args.profiles)
+        state_path = resolve_relative_path(root, args.state_file, "state file")
+        enable_profiles(state_path, [profile.name for profile in profiles])
+    config = build_runtime_config(args)
+    if args.command == "start":
+        root, lock_path, log_path = _scheduler_paths(args)
+        result = start_scheduler(config, args, lock_path, log_path)
+        result["plan_hash"] = plan["plan_hash"]
+        if args.machine:
+            _emit_machine(args, "running", result=result)
+        else:
+            print(yaml.safe_dump(result, allow_unicode=True, sort_keys=False), end="")
+        return 0
+
+    client = PgClient(config)
+    output_context = contextlib.redirect_stdout(sys.stderr) if args.machine else contextlib.nullcontext()
+    with output_context:
         if args.command == "prepare-db":
             prepare_database(client, config, args)
         elif args.command == "install":
@@ -355,7 +649,8 @@ def main(argv: list[str] | None = None) -> int:
                 prepare_database(client, config, args)
             install_profiles(client, config, profiles)
         elif args.command == "run":
-            for profile in _validated_selection(config.root, args.profiles):
+            profiles = _validated_selection(config.root, args.profiles)
+            for profile in profiles:
                 jobs = [profile.job_by_name(name) for name in csv_list(args.job)] if args.job else profile.jobs
                 for job in jobs:
                     run_job_once(client, config, profile, job)
@@ -374,7 +669,47 @@ def main(argv: list[str] | None = None) -> int:
             )
         else:  # pragma: no cover - argparse requires a known subcommand
             raise WorkloadError(f"Unhandled command: {args.command}")
-        return 0
-    except WorkloadError as exc:
+    if args.machine:
+        _emit_machine(
+            args,
+            "succeeded",
+            result={"plan_hash": plan["plan_hash"], "operation": operation},
+        )
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if args.command is None and not args.component_capabilities:
+        parser.error("a command is required")
+    try:
+        return _run(args)
+    except WorkloadOwnershipError as exc:
+        if args.machine:
+            _emit_machine(
+                args,
+                "failed",
+                error={"code": "ownership_error", "message": str(exc)},
+            )
+            return EXIT_CODES["ownership_error"]
         eprint(f"ERROR: {exc}")
         return 1
+    except WorkloadError as exc:
+        if args.machine:
+            code = "precondition_failed" if str(exc).startswith("Stale plan:") else "execution_error"
+            status = "blocked" if code == "precondition_failed" else "failed"
+            _emit_machine(args, status, error={"code": code, "message": str(exc)})
+            return EXIT_CODES[code]
+        eprint(f"ERROR: {exc}")
+        return 1
+    except KeyboardInterrupt:
+        if args.machine:
+            _emit_machine(
+                args,
+                "cancelled",
+                error={"code": "cancelled", "message": "interrupted"},
+            )
+            return EXIT_CODES["cancelled"]
+        eprint("ERROR: interrupted")
+        return 130
