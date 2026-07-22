@@ -15,7 +15,9 @@ BEGIN
     FROM pg_namespace
     WHERE nspname LIKE 'many_objects_%';
 
-    FOR i IN (last_schema_index + 1)..(last_schema_index + 5) LOOP
+    -- One schema per invocation keeps DDL locks bounded.  The profile runner
+    -- scales the number of committed invocations with --scale.
+    FOR i IN (last_schema_index + 1)..(last_schema_index + 1) LOOP
         schema_name := 'many_objects_' || i;
 
         -- Create the schema
@@ -55,12 +57,35 @@ BEGIN
             END LOOP;
         END LOOP;
 
-        -- Create indexes on the partitioned table
-        EXECUTE format('
-            CREATE INDEX ON %I.%I (created_at);
-            CREATE INDEX ON %I.%I (data);
-        ', schema_name, table_name, schema_name, table_name);
+        -- PostgreSQL 11+ propagates parent indexes to every leaf partition.
+        -- PostgreSQL 10 rejects CREATE INDEX on a partitioned table; leaf
+        -- indexes are created below, after this DO block commits its DDL.
+        IF current_setting('server_version_num')::integer >= 110000 THEN
+            EXECUTE format('
+                CREATE INDEX ON %I.%I (created_at);
+                CREATE INDEX ON %I.%I (data);
+            ', schema_name, table_name, schema_name, table_name);
+        END IF;
 
         RAISE NOTICE 'Created schema % and partitioned table with partitions and subpartitions.', schema_name;
     END LOOP;
 END $$;
+
+-- psql \gexec runs every generated row as a separately committed command.
+-- This keeps the PostgreSQL 10 lock footprint bounded while preserving the
+-- indexed metadata shape used by the profile on newer releases.
+SELECT format(
+    'CREATE INDEX ON %I.%I (created_at); CREATE INDEX ON %I.%I (data);',
+    n.nspname,
+    c.relname,
+    n.nspname,
+    c.relname
+)
+FROM pg_catalog.pg_class c
+JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+WHERE current_setting('server_version_num')::integer < 110000
+  AND n.nspname LIKE 'many_objects_%'
+  AND c.relkind = 'r'
+  AND c.relname LIKE 'partitioned_table_partition_%_subpartition_%'
+ORDER BY n.nspname, c.relname
+\gexec

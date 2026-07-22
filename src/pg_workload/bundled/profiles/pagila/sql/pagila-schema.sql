@@ -239,8 +239,6 @@ CREATE SEQUENCE pagila.customer_customer_id_seq
 
 SET default_tablespace = '';
 
-SET default_table_access_method = heap;
-
 --
 -- Name: customer; Type: TABLE; Schema: public; Owner: postgres
 --
@@ -640,8 +638,7 @@ CREATE TABLE pagila.payment (
     staff_id integer NOT NULL,
     rental_id integer NOT NULL,
     amount numeric(5,2) NOT NULL,
-    payment_date timestamp with time zone NOT NULL,
-    PRIMARY KEY (payment_date, payment_id)
+    payment_date timestamp with time zone NOT NULL
 )
 PARTITION BY RANGE (payment_date);
 
@@ -930,6 +927,34 @@ ALTER TABLE ONLY pagila.payment ATTACH PARTITION pagila.payment_p2022_06 FOR VAL
 --
 
 ALTER TABLE ONLY pagila.payment ATTACH PARTITION pagila.payment_p2022_07 FOR VALUES FROM ('2022-07-01 01:00:00+01') TO ('2022-08-01 01:00:00+01');
+
+-- PostgreSQL 10 cannot own a primary key on a partitioned parent.  Keep the
+-- same key columns by placing the constraint on every leaf there; PostgreSQL
+-- 11+ uses the parent constraint and propagates its indexes.
+DO $$
+DECLARE
+    leaf record;
+BEGIN
+    IF current_setting('server_version_num')::integer >= 110000 THEN
+        ALTER TABLE pagila.payment
+            ADD CONSTRAINT payment_pkey PRIMARY KEY (payment_date, payment_id);
+    ELSE
+        FOR leaf IN
+            SELECT n.nspname, c.relname
+            FROM pg_catalog.pg_inherits i
+            JOIN pg_catalog.pg_class c ON c.oid = i.inhrelid
+            JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+            WHERE i.inhparent = 'pagila.payment'::regclass
+        LOOP
+            EXECUTE format(
+                'ALTER TABLE %I.%I ADD PRIMARY KEY (payment_date, payment_id)',
+                leaf.nspname,
+                leaf.relname
+            );
+        END LOOP;
+    END IF;
+END
+$$;
 
 
 --
@@ -1286,105 +1311,105 @@ CREATE UNIQUE INDEX rental_category ON pagila.rental_by_category USING btree (ca
 -- Name: film film_fulltext_trigger; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
-CREATE TRIGGER film_fulltext_trigger BEFORE INSERT OR UPDATE ON pagila.film FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('fulltext', 'pg_catalog.english', 'title', 'description');
+CREATE TRIGGER film_fulltext_trigger BEFORE INSERT OR UPDATE ON pagila.film FOR EACH ROW EXECUTE PROCEDURE tsvector_update_trigger('fulltext', 'pg_catalog.english', 'title', 'description');
 
 
 --
 -- Name: actor last_updated; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
-CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.actor FOR EACH ROW EXECUTE FUNCTION pagila.last_updated();
+CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.actor FOR EACH ROW EXECUTE PROCEDURE pagila.last_updated();
 
 
 --
 -- Name: address last_updated; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
-CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.address FOR EACH ROW EXECUTE FUNCTION pagila.last_updated();
+CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.address FOR EACH ROW EXECUTE PROCEDURE pagila.last_updated();
 
 
 --
 -- Name: category last_updated; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
-CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.category FOR EACH ROW EXECUTE FUNCTION pagila.last_updated();
+CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.category FOR EACH ROW EXECUTE PROCEDURE pagila.last_updated();
 
 
 --
 -- Name: city last_updated; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
-CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.city FOR EACH ROW EXECUTE FUNCTION pagila.last_updated();
+CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.city FOR EACH ROW EXECUTE PROCEDURE pagila.last_updated();
 
 
 --
 -- Name: country last_updated; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
-CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.country FOR EACH ROW EXECUTE FUNCTION pagila.last_updated();
+CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.country FOR EACH ROW EXECUTE PROCEDURE pagila.last_updated();
 
 
 --
 -- Name: customer last_updated; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
-CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.customer FOR EACH ROW EXECUTE FUNCTION pagila.last_updated();
+CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.customer FOR EACH ROW EXECUTE PROCEDURE pagila.last_updated();
 
 
 --
 -- Name: film last_updated; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
-CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.film FOR EACH ROW EXECUTE FUNCTION pagila.last_updated();
+CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.film FOR EACH ROW EXECUTE PROCEDURE pagila.last_updated();
 
 
 --
 -- Name: film_actor last_updated; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
-CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.film_actor FOR EACH ROW EXECUTE FUNCTION pagila.last_updated();
+CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.film_actor FOR EACH ROW EXECUTE PROCEDURE pagila.last_updated();
 
 
 --
 -- Name: film_category last_updated; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
-CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.film_category FOR EACH ROW EXECUTE FUNCTION pagila.last_updated();
+CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.film_category FOR EACH ROW EXECUTE PROCEDURE pagila.last_updated();
 
 
 --
 -- Name: inventory last_updated; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
-CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.inventory FOR EACH ROW EXECUTE FUNCTION pagila.last_updated();
+CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.inventory FOR EACH ROW EXECUTE PROCEDURE pagila.last_updated();
 
 
 --
 -- Name: language last_updated; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
-CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.language FOR EACH ROW EXECUTE FUNCTION pagila.last_updated();
+CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.language FOR EACH ROW EXECUTE PROCEDURE pagila.last_updated();
 
 
 --
 -- Name: rental last_updated; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
-CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.rental FOR EACH ROW EXECUTE FUNCTION pagila.last_updated();
+CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.rental FOR EACH ROW EXECUTE PROCEDURE pagila.last_updated();
 
 
 --
 -- Name: staff last_updated; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
-CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.staff FOR EACH ROW EXECUTE FUNCTION pagila.last_updated();
+CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.staff FOR EACH ROW EXECUTE PROCEDURE pagila.last_updated();
 
 
 --
 -- Name: store last_updated; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
-CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.store FOR EACH ROW EXECUTE FUNCTION pagila.last_updated();
+CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.store FOR EACH ROW EXECUTE PROCEDURE pagila.last_updated();
 
 
 --

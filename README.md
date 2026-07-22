@@ -133,6 +133,8 @@ instead of `--passfile`; `PGPASSWORD` is accepted only as an admin-password comp
 
 `prepare-db --recreate` drops only the selected workload database after terminating its sessions;
 it does not drop the workload role.
+Unless `--extensions` is supplied, it creates both `pg_stat_statements` and
+`pg_buffercache`, matching the default pg_diag metric set used by pg_play.
 
 ## Targets
 
@@ -167,9 +169,9 @@ Use `--bin-dir /path/to/postgresql/bin` when client binaries are outside
 | `simple_stock_spec_symbols` | Identifier, Unicode, and parser edge cases | synthetic Python generator |
 | `imdb` | Movie-domain analytical joins and skew | synthetic Python generator |
 | `pagila` | Mixed Pagila OLTP | synthetic Python generator |
-| `many_objects` | Metadata-heavy schemas and partitions | SQL object creation only |
+| `many_objects` | Metadata-heavy schemas and partitions | scale-aware SQL object creation |
 | `emulate_errors` | Intentional SQL errors | SQL seed rows only |
-| `pss_overflow` | `pg_stat_statements` churn | SQL object creation; extension/preload required |
+| `pss_overflow` | `pg_stat_statements` churn | scaled Python generator; extension/preload required |
 
 No profile requires a dump, CSV file, or network download. The Pagila schema is redistributed
 under its upstream license; see `THIRD_PARTY_NOTICES.md`. Its rows are generated locally. The
@@ -284,8 +286,10 @@ For example, `--scale 2` approximately doubles scalable tables. Very small value
 profile-specific minimum so foreign-key structure and query selectivity remain meaningful in CI.
 Generators use deterministic seeds, preserve foreign-key relationships, and introduce skewed
 random distributions for hot entities, popularity, money, ratings, inventory, and customers.
-Profiles that model object count or failures (`many_objects`, `pss_overflow`, `emulate_errors`)
-have no Python generator and ignore `--scale` during preparation.
+`many_objects` scales its committed schema batches with `scale_repeat`; this
+also bounds DDL locks on small PostgreSQL stands. `pss_overflow` scales its
+generated table count (with a 50-table minimum). `emulate_errors` alone ignores
+`--scale` because it keeps a fixed, tiny seed.
 
 Installing a generated profile recreates its schema before filling it, so changing `--scale` and
 installing again produces a clean dataset rather than appending rows. Scheduler recovery reuses
@@ -314,6 +318,11 @@ pg-workload scheduler \
   --host 127.0.0.1 \
   --run-immediately
 ```
+
+`scheduler`, `start`, and their reviewed `plan --operation=scheduler` accept
+`--job-interval-seconds N` to apply one bounded interval to every selected
+profile. This is intended for short orchestrated observation windows; normal
+long-running installations should keep profile-specific intervals.
 
 Changes made by `enable`, `disable`, and `set-interval` are picked up without restarting the
 scheduler:

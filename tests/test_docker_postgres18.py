@@ -368,7 +368,7 @@ class DockerPostgres18SmokeTest(unittest.TestCase):
             "postgres",
             "--database",
             dbname,
-            "--workload-user",
+            "--user",
             WORKLOAD_USER,
             "--bin-dir",
             str(self.bin_dir),

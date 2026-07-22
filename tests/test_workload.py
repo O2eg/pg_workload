@@ -13,6 +13,7 @@ from pathlib import Path
 from unittest import mock
 
 from pg_workload.cli import main
+from pg_workload.state import enable_profiles
 
 try:
     import tomllib
@@ -42,6 +43,8 @@ class WorkloadGeneratorTests(unittest.TestCase):
             for profile in profiles.values():
                 errors.extend(self.workload.validate_profile(profile))
             self.assertEqual(errors, [])
+            imdb_generator = Path(tmpdir) / "data" / "imdb" / "generator.py"
+            self.assertIn("g::bigint * 104729", imdb_generator.read_text(encoding="utf-8"))
 
     def test_default_pg_major_is_18(self):
         parser = self.workload.build_parser()
@@ -49,6 +52,22 @@ class WorkloadGeneratorTests(unittest.TestCase):
         config = self.workload.build_runtime_config(args)
         self.assertEqual(config.pg_major, "18")
         self.assertEqual(str(config.bin_dir), "/usr/lib/postgresql/18/bin")
+
+    def test_pg_version_and_user_follow_pg_diag_cli_naming(self):
+        parser = self.workload.build_parser()
+        args = parser.parse_args(
+            [
+                "prepare-db",
+                "--target=external",
+                "--host=127.0.0.1",
+                "--pg-version=18",
+                "--user=load_user",
+                "--dry-run",
+            ]
+        )
+
+        self.assertEqual("18", args.pg_major)
+        self.assertEqual("load_user", args.workload_user)
 
     def test_machine_plumbing_is_hidden_from_human_help(self):
         help_text = self.workload.build_parser().format_help()
@@ -80,6 +99,11 @@ class WorkloadGeneratorTests(unittest.TestCase):
         self.assertEqual("pg_workload", payload["component"])
         self.assertEqual("workload-capabilities", payload["request_id"])
         self.assertEqual("succeeded", payload["status"])
+        self.assertEqual("pg_play/capabilities/v1", payload["result"]["capability_schema_version"])
+        self.assertEqual(
+            "--component-capabilities",
+            payload["result"]["machine_interface"]["capabilities_option"],
+        )
 
     def test_execution_plan_is_stable_and_changes_with_profile_content(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -734,6 +758,36 @@ class WorkloadGeneratorTests(unittest.TestCase):
             self.assertFalse(any("ALTER ROLE" in command for command in client.commands))
             self.assertFalse(any(config.workload_password in command for command in client.commands))
 
+    def test_prepare_database_installs_default_diagnostic_extensions(self):
+        class FakeClient:
+            def __init__(self):
+                self.commands = []
+
+            def query_scalar(self, dbname, user, password, sql):
+                if "pg_roles" in sql or "pg_database" in sql:
+                    return "1"
+                return "auto_explain,pg_stat_statements"
+
+            def run_psql(self, dbname, user, password, *, command, **kwargs):
+                self.commands.append(command)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            client = FakeClient()
+            self.workload.prepare_database(
+                client,
+                self.runtime_config_for_logs(tmpdir),
+                argparse.Namespace(
+                    recreate=False,
+                    workload_superuser=False,
+                    rotate_workload_password=False,
+                    extensions=None,
+                    preload_libraries=None,
+                ),
+            )
+
+            self.assertIn('CREATE EXTENSION IF NOT EXISTS "pg_stat_statements";', client.commands)
+            self.assertIn('CREATE EXTENSION IF NOT EXISTS "pg_buffercache";', client.commands)
+
     def test_job_recover_on_failure_defaults_to_true(self):
         self.assertTrue(self.workload.job_recover_on_failure({}))
         self.assertTrue(self.workload.job_recover_on_failure({"recover_on_failure": True}))
@@ -825,6 +879,45 @@ class WorkloadGeneratorTests(unittest.TestCase):
                 [("sql", "schema.sql"), ("generator", "generator.py", 0.25), ("sql", "indexes.sql")],
             )
 
+    def test_install_scales_repeatable_sql_steps_without_reaching_zero(self):
+        class FakeClient:
+            def __init__(self):
+                self.calls = []
+
+            def run_psql(self, dbname, user, password, *, file_path=None, **kwargs):
+                self.calls.append(file_path.name)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "schema.sql").write_text("SELECT 1;\n", encoding="utf-8")
+            profile = self.workload.Profile(
+                root,
+                {
+                    "api_version": self.workload.API_VERSION,
+                    "name": "scaled-repeat",
+                    "prepare": {
+                        "steps": [
+                            {
+                                "type": "sql",
+                                "path": "schema.sql",
+                                "repeat": 25,
+                                "scale_repeat": True,
+                            }
+                        ]
+                    },
+                    "jobs": [{"name": "main", "type": "psql", "interval": 60, "command": "SELECT 1"}],
+                },
+            )
+            client = FakeClient()
+
+            self.workload.install_profiles(
+                client,
+                dataclasses.replace(self.runtime_config_for_logs(tmpdir), scale=0.05),
+                [profile],
+            )
+
+            self.assertEqual(client.calls, ["schema.sql"])
+
     def test_bundled_profiles_contain_no_data_archives_or_csv(self):
         forbidden_suffixes = (".csv", ".csv.gz", ".tar", ".tar.gz", ".zip")
         forbidden = [
@@ -834,6 +927,24 @@ class WorkloadGeneratorTests(unittest.TestCase):
         ]
 
         self.assertEqual(forbidden, [])
+
+    def test_many_objects_indexes_are_compatible_with_postgresql_10(self):
+        sql = (self.workload.bundled_profiles_root() / "many_objects" / "sql" / "prepare_schema_02.sql").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("server_version_num')::integer >= 110000", sql)
+        self.assertIn("server_version_num')::integer < 110000", sql)
+        self.assertIn("\\gexec", sql)
+
+    def test_pagila_schema_avoids_postgresql_12_only_table_access_setting(self):
+        sql = (self.workload.bundled_profiles_root() / "pagila" / "sql" / "pagila-schema.sql").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertNotIn("default_table_access_method", sql)
+        self.assertNotIn("EXECUTE FUNCTION", sql)
+        self.assertIn("EXECUTE PROCEDURE", sql)
 
     def test_profile_preload_requirement_is_fatal(self):
         class FakeClient:
@@ -948,6 +1059,36 @@ class WorkloadGeneratorTests(unittest.TestCase):
                 [("alpha", "read", 13)],
             )
 
+    def test_enable_profiles_can_apply_one_reviewed_interval_to_every_job(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "data").mkdir()
+            state_path = root / "state" / "workloads.yml"
+            self.create_minimal_profile(
+                root,
+                "alpha",
+                jobs=[
+                    {"name": "read", "type": "pgbench", "interval": 60, "log": "read.log"},
+                    {"name": "write", "type": "pgbench", "interval": 600, "log": "write.log"},
+                ],
+            )
+
+            enable_profiles(
+                state_path,
+                ["alpha"],
+                interval_seconds=5,
+            )
+            schedule = self.workload.effective_schedule(
+                self.workload.load_profiles(root),
+                None,
+                self.workload.load_state(state_path),
+            )
+
+            self.assertEqual(
+                [(profile.name, job["name"], interval) for profile, job, interval in schedule],
+                [("alpha", "read", 5), ("alpha", "write", 5)],
+            )
+
     def test_effective_schedule_skips_invalid_state_interval(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
@@ -980,6 +1121,9 @@ class WorkloadGeneratorTests(unittest.TestCase):
         with contextlib.redirect_stderr(io.StringIO()):
             with self.assertRaises(SystemExit):
                 parser.parse_args(["scheduler", "--reload-interval=0"])
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                parser.parse_args(["start", "--job-interval-seconds=0"])
 
     def test_cli_rejects_non_finite_scale(self):
         parser = self.workload.build_parser()
@@ -1030,7 +1174,7 @@ class WorkloadGeneratorTests(unittest.TestCase):
                     "--port=5432",
                     "--bin-dir",
                     str(bin_dir),
-                    "--reload-interval=1",
+                    "--reload-interval=0.1",
                     "--run-immediately",
                     "--no-recover-on-failure",
                     "--stop-timeout=1",
@@ -1051,7 +1195,7 @@ class WorkloadGeneratorTests(unittest.TestCase):
                 self.assertTrue(marker.exists(), "scheduler did not start the fake pgbench job")
 
                 self.workload.update_job_state(state_path, "slow", job_name="main", enabled=False)
-                time.sleep(2.0)
+                time.sleep(0.5)
             finally:
                 proc.terminate()
             stdout, stderr = proc.communicate(timeout=10)
@@ -1078,7 +1222,7 @@ class WorkloadGeneratorTests(unittest.TestCase):
                     "--host=127.0.0.1",
                     "--port=5432",
                     "--dry-run",
-                    "--reload-interval=1",
+                    "--reload-interval=0.1",
                     "--run-immediately",
                 ],
                 cwd=ROOT,
@@ -1088,7 +1232,7 @@ class WorkloadGeneratorTests(unittest.TestCase):
                 text=True,
             )
             try:
-                time.sleep(1.2)
+                time.sleep(0.2)
                 self.create_minimal_profile(root, "dynamic_profile")
                 self.workload.update_job_state(
                     root / "state" / "workloads.yml",
@@ -1097,7 +1241,7 @@ class WorkloadGeneratorTests(unittest.TestCase):
                     enabled=True,
                     interval=60,
                 )
-                time.sleep(2.2)
+                time.sleep(0.5)
             finally:
                 proc.terminate()
             stdout, stderr = proc.communicate(timeout=10)
@@ -1170,7 +1314,7 @@ class WorkloadGeneratorTests(unittest.TestCase):
                     "--port=5432",
                     "--bin-dir",
                     str(bin_dir),
-                    "--reload-interval=1",
+                    "--reload-interval=0.1",
                     "--run-immediately",
                     "--recover-interval=1",
                     "--stop-timeout=1",
@@ -1189,7 +1333,7 @@ class WorkloadGeneratorTests(unittest.TestCase):
                         break
                     time.sleep(0.1)
                 self.assertTrue(job_marker.exists(), "scheduler did not start the fake pgbench job")
-                time.sleep(2.0)
+                time.sleep(0.5)
             finally:
                 proc.terminate()
             stdout, stderr = proc.communicate(timeout=10)

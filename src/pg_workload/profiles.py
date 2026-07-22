@@ -32,7 +32,7 @@ TOP_LEVEL_FIELDS = {
     "jobs",
 }
 PREPARE_FIELDS = {"steps"}
-SQL_STEP_FIELDS = {"type", "path", "command", "repeat", "psql_args"}
+SQL_STEP_FIELDS = {"type", "path", "command", "repeat", "scale_repeat", "psql_args"}
 GENERATOR_STEP_FIELDS = {"type", "path"}
 JOB_FIELDS = {
     "name",
@@ -228,6 +228,8 @@ def _validate_prepare(profile: Profile, errors: list[str]) -> None:
                 errors.append(f"{prefix}.command must be a non-empty string")
             if "repeat" in step:
                 _positive_int(step["repeat"], f"{prefix}.repeat", errors)
+            if "scale_repeat" in step and not isinstance(step["scale_repeat"], bool):
+                errors.append(f"{prefix}.scale_repeat must be a boolean")
             if "psql_args" in step:
                 _string_list(step["psql_args"], f"{prefix}.psql_args", errors)
         elif step_type == "generator":

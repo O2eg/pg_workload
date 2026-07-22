@@ -8,11 +8,17 @@ from pathlib import Path
 from typing import Any
 
 from pg_workload import __version__
-from pg_workload.common import csv_list, resolve_relative_path
+from pg_workload.common import DEFAULT_EXTENSIONS, csv_list, resolve_relative_path
 from pg_workload.profiles import Profile
 from pg_workload.state import load_state, state_with_profiles_enabled
 
 CONTRACT_VERSION = "pg_play/component/v1"
+CAPABILITY_SCHEMA_VERSION = "pg_play/capabilities/v1"
+MACHINE_INTERFACE = {
+    "machine_flag": "--machine",
+    "request_id_option": "--request-id",
+    "capabilities_option": "--component-capabilities",
+}
 COMPONENT = "pg_workload"
 
 EXIT_CODES = {
@@ -132,7 +138,7 @@ def execution_plan(args: Any, profiles: list[Profile], operation: str) -> dict[s
             "recreate_db": getattr(args, "recreate_db", False),
             "workload_superuser": getattr(args, "workload_superuser", False),
             "rotate_workload_password": getattr(args, "rotate_workload_password", False),
-            "extensions": sorted(set(csv_list(getattr(args, "extensions", None)))),
+            "extensions": sorted(set(csv_list(getattr(args, "extensions", None)) or DEFAULT_EXTENSIONS)),
             "preload_libraries": sorted(set(csv_list(getattr(args, "preload_libraries", None)))),
         },
         "execution": {
@@ -170,6 +176,7 @@ def execution_plan(args: Any, profiles: list[Profile], operation: str) -> dict[s
             state_with_profiles_enabled(
                 current_state,
                 [profile.name for profile in profiles],
+                interval_seconds=getattr(args, "job_interval_seconds", None),
             )
             if getattr(args, "enable_selected", False)
             else current_state
@@ -182,6 +189,7 @@ def execution_plan(args: Any, profiles: list[Profile], operation: str) -> dict[s
             "daemon_lock_file": str(lock_path),
             "reload_interval": getattr(args, "reload_interval", 5),
             "run_immediately": getattr(args, "run_immediately", False),
+            "job_interval_seconds": getattr(args, "job_interval_seconds", None),
             "recover_on_failure": getattr(args, "recover_on_failure", True),
             "recover_interval": getattr(args, "recover_interval", 60),
             "stop_timeout": getattr(args, "stop_timeout", 10),
@@ -192,19 +200,27 @@ def execution_plan(args: Any, profiles: list[Profile], operation: str) -> dict[s
 
 def capabilities() -> dict[str, Any]:
     return {
+        "capability_schema_version": CAPABILITY_SCHEMA_VERSION,
+        "machine_interface": MACHINE_INTERFACE,
         "contract_version": CONTRACT_VERSION,
         "component": COMPONENT,
         "component_version": __version__,
         "commands": {
-            "profiles": {"mutates_target": False, "machine_output": True},
-            "validate": {"mutates_target": False, "machine_output": True},
-            "plan": {"mutates_target": False, "machine_output": True},
-            "prepare-db": {"mutates_target": True, "accepts_plan_hash": True},
-            "install": {"mutates_target": True, "accepts_plan_hash": True},
-            "run": {"mutates_target": True, "accepts_plan_hash": True},
-            "start": {"mutates_target": True, "accepts_plan_hash": True},
-            "status": {"mutates_target": False, "machine_output": True},
-            "stop": {"mutates_target": True, "ownership_checked": True},
+            "capabilities": {"mutates_target": False, "machine_output": True, "accepts_plan_hash": False},
+            "profiles": {"mutates_target": False, "machine_output": True, "accepts_plan_hash": False},
+            "validate": {"mutates_target": False, "machine_output": True, "accepts_plan_hash": False},
+            "plan": {"mutates_target": False, "machine_output": True, "accepts_plan_hash": False},
+            "prepare-db": {"mutates_target": True, "machine_output": True, "accepts_plan_hash": True},
+            "install": {"mutates_target": True, "machine_output": True, "accepts_plan_hash": True},
+            "run": {"mutates_target": True, "machine_output": True, "accepts_plan_hash": True},
+            "start": {"mutates_target": True, "machine_output": True, "accepts_plan_hash": True},
+            "status": {"mutates_target": False, "machine_output": True, "accepts_plan_hash": False},
+            "stop": {
+                "mutates_target": True,
+                "machine_output": True,
+                "accepts_plan_hash": False,
+                "ownership_checked": True,
+            },
         },
         "profile_schema_versions": ["pg_workload/v1"],
         "plan_schema_versions": ["pg_workload/plan-v1"],

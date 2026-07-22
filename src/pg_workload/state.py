@@ -17,7 +17,11 @@ def load_state(path: Path) -> dict[str, Any]:
 def state_with_profiles_enabled(
     state: dict[str, Any],
     profile_names: list[str],
+    *,
+    interval_seconds: int | None = None,
 ) -> dict[str, Any]:
+    if interval_seconds is not None:
+        interval_seconds = parse_positive_int(interval_seconds, "profile interval")
     desired = copy.deepcopy(state)
     profiles = desired.setdefault("profiles", {})
     for profile_name in sorted(set(profile_names)):
@@ -25,14 +29,25 @@ def state_with_profiles_enabled(
         if not isinstance(profile_state, dict):
             raise WorkloadError(f"Invalid state for profile: {profile_name}")
         profile_state["enabled"] = True
+        if interval_seconds is not None:
+            profile_state["interval"] = interval_seconds
         profile_state.setdefault("jobs", {})
     return desired
 
 
-def enable_profiles(state_path: Path, profile_names: list[str]) -> None:
+def enable_profiles(
+    state_path: Path,
+    profile_names: list[str],
+    *,
+    interval_seconds: int | None = None,
+) -> None:
     lock_path = state_path.with_name(state_path.name + ".lock")
     with file_lock(lock_path):
-        desired = state_with_profiles_enabled(load_state(state_path), profile_names)
+        desired = state_with_profiles_enabled(
+            load_state(state_path),
+            profile_names,
+            interval_seconds=interval_seconds,
+        )
         save_yaml(state_path, desired)
 
 

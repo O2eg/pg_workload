@@ -9,7 +9,14 @@ import time
 from pathlib import Path
 from typing import Any
 
-from pg_workload.common import WorkloadError, eprint, file_lock, format_command, parse_positive_int
+from pg_workload.common import (
+    WorkloadError,
+    eprint,
+    file_lock,
+    format_command,
+    parse_positive_float,
+    parse_positive_int,
+)
 from pg_workload.config import RuntimeConfig
 from pg_workload.pg_client import PgClient
 from pg_workload.profiles import Profile, load_profiles, validate_profile
@@ -52,13 +59,13 @@ def common_child_args(config: RuntimeConfig) -> list[str]:
         str(config.root),
         "--target",
         config.target,
-        "--pg-major",
+        "--pg-version",
         config.pg_major,
         "--port",
         str(config.port),
         "--database",
         config.dbname,
-        "--workload-user",
+        "--user",
         config.workload_user,
         "--admin-db",
         config.admin_db,
@@ -202,14 +209,14 @@ def run_scheduler(
     root: Path,
     requested: list[str] | None,
     state_path: Path,
-    reload_interval: int,
+    reload_interval: float,
     run_immediately: bool,
     daemon_lock_path: Path,
     recover_on_failure: bool,
     recover_interval: int,
     stop_timeout: int,
 ) -> None:
-    reload_interval = parse_positive_int(reload_interval, "reload interval")
+    reload_interval = parse_positive_float(reload_interval, "reload interval")
     recover_interval = parse_positive_int(recover_interval, "recover interval")
     stop_timeout = parse_positive_int(stop_timeout, "stop timeout")
     resource_check_interval = parse_positive_int(client.config.resource_check_interval, "resource check interval")
@@ -423,7 +430,7 @@ def run_scheduler(
                         eprint(f"Failed to start job {label}: {exc}")
                         next_runs[key] = time.time() + interval
 
-                time.sleep(0.5)
+                time.sleep(min(0.5, reload_interval))
         finally:
             stop_all_processes(
                 [*running_jobs.values(), *running_recoveries.values()],

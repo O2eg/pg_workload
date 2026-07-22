@@ -15,7 +15,7 @@ concurrency:
 jobs:
   build:
     name: Test and build distributions
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
 
     steps:
@@ -28,7 +28,7 @@ jobs:
           python-version: "3.10"
 
       - name: Install test and build dependencies
-        run: python -m pip install --upgrade pip ".[dev]"
+        run: python -m pip install --upgrade 'pip>=24.3,<26' ".[dev]"
 
       - name: Verify tag matches package version
         shell: bash
@@ -91,7 +91,7 @@ jobs:
   publish:
     name: Publish distributions to PyPI
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment:
       name: pypi

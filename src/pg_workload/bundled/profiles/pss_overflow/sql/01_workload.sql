@@ -1,6 +1,7 @@
-\set table1_id random(1, 1000)
-\set table2_id random(1, 1000)
-\set table3_id random(1, 1000)
+SELECT table_count FROM pss_overflow.profile_config \gset
+\set table1_id random(1, :table_count)
+\set table2_id random(1, :table_count)
+\set table3_id random(1, :table_count)
 
 set search_path = 'pss_overflow';
 

@@ -9,6 +9,8 @@ prepare:
   steps:
     - type: sql
       path: sql/pss_overflow-schema.sql
+    - type: generator
+      path: generator.py
 jobs:
   - name: statement_churn
     type: pgbench

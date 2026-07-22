@@ -4,6 +4,7 @@ import argparse
 from typing import Any
 
 from pg_workload.common import (
+    DEFAULT_EXTENSIONS,
     WorkloadError,
     as_string_list,
     csv_list,
@@ -92,7 +93,7 @@ def prepare_database(client: PgClient, config: RuntimeConfig, args: argparse.Nam
             command=f"CREATE DATABASE {quote_ident(config.dbname)} OWNER {quote_ident(role)};",
         )
 
-    extensions = csv_list(args.extensions) or ["pg_stat_statements"]
+    extensions = csv_list(args.extensions) or list(DEFAULT_EXTENSIONS)
     for extension in extensions:
         client.run_psql(
             config.dbname,
@@ -175,6 +176,8 @@ def install_profiles(client: PgClient, config: RuntimeConfig, profiles: list[Pro
             if step_type != "sql":
                 raise WorkloadError(f"Unsupported prepare step in {profile.name}: {step_type}")
             repeat = int(step.get("repeat", 1))
+            if step.get("scale_repeat"):
+                repeat = max(1, round(repeat * config.scale))
             extra_args = list(step.get("psql_args", []) or [])
             for index in range(repeat):
                 label = f" ({index + 1}/{repeat})" if repeat > 1 else ""

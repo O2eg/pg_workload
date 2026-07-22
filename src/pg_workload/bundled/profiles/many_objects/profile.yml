@@ -9,7 +9,8 @@ prepare:
       path: sql/prepare_schema_01.sql
     - type: sql
       path: sql/prepare_schema_02.sql
-      repeat: 5
+      repeat: 25
+      scale_repeat: true
 jobs:
   - name: metadata_scan
     type: pgbench

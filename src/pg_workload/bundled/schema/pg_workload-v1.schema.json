@@ -54,6 +54,7 @@
             "path": {"$ref": "#/$defs/relativePath"},
             "command": {"type": "string", "minLength": 1},
             "repeat": {"type": "integer", "minimum": 1},
+            "scale_repeat": {"type": "boolean"},
             "psql_args": {"$ref": "#/$defs/stringList"}
           },
           "oneOf": [

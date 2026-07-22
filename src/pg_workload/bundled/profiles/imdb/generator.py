@@ -71,7 +71,7 @@ def main() -> None:
 
         INSERT INTO cast_info (title_id, person_id, role_type, billing_order)
         SELECT
-            1 + ((g * 104729 - 1) % {titles}),
+            1 + ((g::bigint * 104729 - 1) % {titles}),
             1 + floor(power(random(), 1.8) * {people})::bigint,
             (ARRAY['actor', 'actress', 'director', 'writer', 'producer'])[1 + (g * 3) % 5],
             1 + (g % 20)
@@ -79,20 +79,20 @@ def main() -> None:
 
         INSERT INTO movie_keyword (title_id, keyword_id)
         SELECT
-            1 + ((g * 65537 - 1) % {titles}),
+            1 + ((g::bigint * 65537 - 1) % {titles}),
             1 + floor(power(random(), 2.3) * {keywords})::bigint
         FROM generate_series(1, {keyword_rows}) AS g;
 
         INSERT INTO movie_company (title_id, company_id, company_type)
         SELECT
-            1 + ((g * 32771 - 1) % {titles}),
+            1 + ((g::bigint * 32771 - 1) % {titles}),
             1 + floor(power(random(), 2.0) * {companies})::bigint,
             (ARRAY['production', 'distributor', 'effects', 'post-production'])[1 + (g % 4)]
         FROM generate_series(1, {company_rows}) AS g;
 
         INSERT INTO movie_info (title_id, info_type, info)
         SELECT
-            1 + ((g * 8191 - 1) % {titles}),
+            1 + ((g::bigint * 8191 - 1) % {titles}),
             (ARRAY['budget', 'gross', 'language', 'location'])[1 + (g % 4)],
             CASE g % 4
                 WHEN 0 THEN '$' || (100000 + (g::bigint * 7919) % 200000000)

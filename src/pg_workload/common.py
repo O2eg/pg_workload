@@ -31,6 +31,7 @@ DEFAULT_LOG_MAX_MB = 100
 DEFAULT_LOG_BACKUPS = 10
 DEFAULT_PGBENCH_CLIENTS = 2
 DEFAULT_PGBENCH_THREADS = 2
+DEFAULT_EXTENSIONS = ("pg_stat_statements", "pg_buffercache")
 DEFAULT_SCRIPT_PATTERNS = ("sql/[0-9][0-9]_*.sql", "sql/select_*.sql")
 DEFAULT_RESOURCE_DISK_MAX_USED_PCT = 90
 DEFAULT_RESOURCE_MEM_MIN_AVAILABLE_PCT = 10
@@ -109,14 +110,21 @@ def positive_int_arg(value: str) -> int:
         raise argparse.ArgumentTypeError(str(exc)) from exc
 
 
-def positive_float_arg(value: str) -> float:
+def parse_positive_float(value: Any, field_name: str) -> float:
     try:
         parsed = float(value)
-    except ValueError as exc:
-        raise argparse.ArgumentTypeError("value must be a number") from exc
+    except (TypeError, ValueError) as exc:
+        raise WorkloadError(f"{field_name} must be a number") from exc
     if not math.isfinite(parsed) or parsed <= 0:
-        raise argparse.ArgumentTypeError("value must be a finite number greater than zero")
+        raise WorkloadError(f"{field_name} must be a finite number greater than zero")
     return parsed
+
+
+def positive_float_arg(value: str) -> float:
+    try:
+        return parse_positive_float(value, "value")
+    except WorkloadError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
 
 
 def non_negative_int_arg(value: str) -> int:

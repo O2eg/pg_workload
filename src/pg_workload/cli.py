@@ -87,7 +87,13 @@ def add_common_args(parser: argparse.ArgumentParser) -> None:
         default="local",
         help="Connection discovery mode (default: local)",
     )
-    parser.add_argument("--pg-major", default=DEFAULT_PG_MAJOR, help="PostgreSQL client major version")
+    parser.add_argument(
+        "--pg-version",
+        "--pg-major",
+        dest="pg_major",
+        default=DEFAULT_PG_MAJOR,
+        help="PostgreSQL client major version (--pg-major is a compatibility alias)",
+    )
     parser.add_argument("--bin-dir", help="Directory containing psql and pgbench")
     parser.add_argument("--host", help="PostgreSQL host or Unix socket directory")
     parser.add_argument("--port", type=positive_int_arg, help="PostgreSQL port (default: 5432)")
@@ -98,7 +104,13 @@ def add_common_args(parser: argparse.ArgumentParser) -> None:
         default=DEFAULT_DB,
         help="Workload database (--dbname is a compatibility alias)",
     )
-    parser.add_argument("--workload-user", default=DEFAULT_USER, help="Role used to execute workload jobs")
+    parser.add_argument(
+        "--user",
+        "--workload-user",
+        dest="workload_user",
+        default=DEFAULT_USER,
+        help="Role used to execute workload jobs (--workload-user is a compatibility alias)",
+    )
     parser.add_argument(
         "--passfile",
         default=os.environ.get("PGPASSFILE"),
@@ -247,8 +259,18 @@ def _add_scheduler_args(parser: argparse.ArgumentParser) -> None:
         default=DEFAULT_DAEMON_LOCK_FILE,
         help="Scheduler lock path relative to root",
     )
-    parser.add_argument("--reload-interval", type=positive_int_arg, default=5, help="State reload interval")
+    parser.add_argument(
+        "--reload-interval",
+        type=positive_float_arg,
+        default=5.0,
+        help="State reload interval in seconds",
+    )
     parser.add_argument("--run-immediately", action="store_true", help="Run enabled jobs at scheduler start")
+    parser.add_argument(
+        "--job-interval-seconds",
+        type=positive_int_arg,
+        help="Override the interval of every selected profile job",
+    )
     parser.add_argument(
         "--recover-on-failure",
         dest="recover_on_failure",
@@ -369,8 +391,9 @@ def build_parser() -> argparse.ArgumentParser:
     _add_prepare_args(plan_cmd)
     plan_cmd.add_argument("--state-file", default=DEFAULT_STATE_FILE)
     plan_cmd.add_argument("--daemon-lock-file", default=DEFAULT_DAEMON_LOCK_FILE)
-    plan_cmd.add_argument("--reload-interval", type=positive_int_arg, default=5)
+    plan_cmd.add_argument("--reload-interval", type=positive_float_arg, default=5.0)
     plan_cmd.add_argument("--run-immediately", action="store_true")
+    plan_cmd.add_argument("--job-interval-seconds", type=positive_int_arg)
     plan_cmd.add_argument(
         "--enable-selected",
         action="store_true",
@@ -625,7 +648,11 @@ def _run(args: argparse.Namespace) -> int:
         root = Path(args.root).resolve()
         profiles = selected_profiles(load_profiles(root, allow_empty=True), args.profiles)
         state_path = resolve_relative_path(root, args.state_file, "state file")
-        enable_profiles(state_path, [profile.name for profile in profiles])
+        enable_profiles(
+            state_path,
+            [profile.name for profile in profiles],
+            interval_seconds=args.job_interval_seconds,
+        )
     config = build_runtime_config(args)
     if args.command == "start":
         root, lock_path, log_path = _scheduler_paths(args)
