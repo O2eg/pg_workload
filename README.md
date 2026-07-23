@@ -18,6 +18,24 @@ The distribution name and command are `pg-workload`; the import package is `pg_w
 wheel contains immutable profile templates and a public `pg_workload/v1` JSON Schema. Runtime
 state, logs, credentials, and generated table contents are never packaged.
 
+## Related projects
+
+pg_workload is conceptually different from a benchmark tool such as
+[pg_perf_bench](https://github.com/O2eg/pg_perf_bench): a benchmark measures a system
+(maximum TPS across a controlled load sweep, with a recreated database and captured
+environment evidence for every point), while pg_workload does not measure anything — it
+emulates diverse background activity so that an otherwise empty database starts to "live":
+queries, plans, locks, WAL, autovacuum, errors, and logs. That living database is then
+observed from the other side: diagnostic reports, log parsing, dashboards, and monitoring
+pipelines are tested against it.
+
+| Project | How it is used together with pg_workload |
+|---|---|
+| [pg_stand](https://github.com/O2eg/pg_stand) | Deploys the disposable Docker stands (PostgreSQL 10–18, replication topologies, diagnostic extensions preloaded) that pg_workload loads — the canonical `pg-stand -> pg-workload -> pg-diag` target. |
+| [pg_diag](https://github.com/O2eg/pg_diag) | Captures JSON/HTML diagnostic reports of the activity pg_workload generates. Bundled profile READMEs document which pg_diag sections each profile exercises, and `prepare-db` installs the matching default extensions (`pg_stat_statements`, `pg_buffercache`). |
+| [pg_play](https://github.com/O2eg/pg_play) | Orchestrates pg_workload through the versioned machine contract `pg_play/component/v1` (plan hashes, desired-state scheduler control) — see [docs/pg_play-integration.md](docs/pg_play-integration.md). |
+| [pg_configurator](https://github.com/O2eg/pg_configurator) | Generates versioned PostgreSQL configuration candidates; apply a candidate to the stand and rerun the same pg_workload profiles to observe how behavior changes with the settings. |
+
 ## Installation
 
 ### Install from PyPI
