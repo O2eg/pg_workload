@@ -28,6 +28,7 @@ TOP_LEVEL_FIELDS = {
     "description",
     "requires_write",
     "requires_preload_libraries",
+    "min_pg_version",
     "prepare",
     "jobs",
 }
@@ -353,6 +354,12 @@ def validate_profile(profile: Profile) -> list[str]:
         f"{profile.name}: requires_preload_libraries",
         errors,
     )
+    if "min_pg_version" in profile.data:
+        min_pg_version = profile.data["min_pg_version"]
+        if isinstance(min_pg_version, bool) or not isinstance(min_pg_version, int):
+            errors.append(f"{profile.name}: min_pg_version must be an integer major version (for example 12)")
+        elif min_pg_version < 10:
+            errors.append(f"{profile.name}: min_pg_version must be at least 10")
     _validate_prepare(profile, errors)
 
     jobs = profile.data.get("jobs")

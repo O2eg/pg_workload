@@ -202,12 +202,15 @@ class PgClient:
             if self.config.pgbench_threads is not None
             else job.get("threads", DEFAULT_PGBENCH_THREADS)
         )
-        duration = self.config.pgbench_duration if self.config.pgbench_duration is not None else job.get("duration", 1)
-        transactions = (
-            self.config.pgbench_transactions
-            if self.config.pgbench_transactions is not None
-            else job.get("transactions")
-        )
+        if self.config.pgbench_duration is not None:
+            duration = self.config.pgbench_duration
+            transactions = None
+        elif self.config.pgbench_transactions is not None:
+            duration = None
+            transactions = self.config.pgbench_transactions
+        else:
+            duration = job.get("duration", 1)
+            transactions = job.get("transactions")
         cmd.extend(["-c", str(clients)])
         cmd.extend(["-j", str(threads)])
         if transactions is not None:

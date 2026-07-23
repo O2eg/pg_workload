@@ -32,6 +32,45 @@ WORKLOAD_USER = "smoke_workload_user"
 WORKLOAD_PASSWORD = "smoke_workload_pw"
 CONTAINER_WAIT_SECONDS = 90
 
+# Per-profile post-run invariants. Each query must return the single value "ok" in the
+# workload database after `install` + `run`; anything else fails the smoke test.
+PROFILE_INVARIANTS = {
+    "simple_stock": ("SELECT CASE WHEN count(*) > 0 THEN 'ok' ELSE 'no rows' END FROM simple_stock.stock_items;"),
+    "simple_stock_spec_symbols": (
+        "SELECT CASE WHEN count(*) >= 3 THEN 'ok' ELSE 'missing tables' END "
+        "FROM pg_tables WHERE schemaname = 'simple_stock_spec_symbols';"
+    ),
+    "imdb": ("SELECT CASE WHEN count(*) > 0 THEN 'ok' ELSE 'no rows' END FROM imdb.title;"),
+    "pagila": ("SELECT CASE WHEN count(*) > 0 THEN 'ok' ELSE 'no rows' END FROM pagila.customer;"),
+    "many_objects": (
+        "SELECT CASE WHEN count(*) > 0 THEN 'ok' ELSE 'no tables' END "
+        "FROM pg_tables WHERE schemaname LIKE 'many_objects\\_%';"
+    ),
+    "emulate_errors": ("SELECT CASE WHEN count(*) > 0 THEN 'ok' ELSE 'no seed rows' END FROM emulate_errors.accounts;"),
+    "pss_overflow": (
+        "SELECT CASE WHEN count(*) >= 50 THEN 'ok' ELSE 'too few tables' END "
+        "FROM pg_tables WHERE schemaname = 'pss_overflow';"
+    ),
+    "queue_skip_locked": (
+        "SELECT CASE WHEN count(*) FILTER (WHERE attempts > 0) > 0 THEN 'ok' ELSE 'no claimed tasks' END "
+        "FROM queue_skip_locked.tasks;"
+    ),
+    "jsonb_docs": ("SELECT CASE WHEN count(*) > 0 THEN 'ok' ELSE 'no rows' END FROM jsonb_docs.documents;"),
+    "partition_aging": (
+        "SELECT CASE WHEN (SELECT count(*) FROM pg_inherits i "
+        "JOIN pg_class c ON c.oid = i.inhrelid "
+        "JOIN pg_class p ON p.oid = i.inhparent "
+        "JOIN pg_namespace n ON n.oid = p.relnamespace "
+        "WHERE n.nspname = 'partition_aging' AND c.relkind = 'r') >= 33 "
+        "AND (SELECT count(*) FROM partition_aging.events) > 2000 "
+        "THEN 'ok' ELSE 'bad partitions or ingest did not add rows' END;"
+    ),
+    "bloat_vacuum": (
+        "SELECT CASE WHEN vacuum_count >= 1 THEN 'ok' ELSE 'vacuum did not run' END "
+        "FROM pg_stat_user_tables WHERE schemaname = 'bloat_vacuum' AND relname = 'accounts';"
+    ),
+}
+
 
 def load_workload_module():
     import pg_workload
@@ -385,7 +424,7 @@ class DockerPostgres18SmokeTest(unittest.TestCase):
         profile_names = sorted(profiles)
         workload_arg = ",".join(profile_names)
 
-        self.assertGreaterEqual(len(profile_names), 7)
+        self.assertGreaterEqual(len(profile_names), 11)
         self.run_workload(["validate", "--root", str(self.smoke_root)], timeout=30)
         self.run_workload(
             [
@@ -411,6 +450,17 @@ class DockerPostgres18SmokeTest(unittest.TestCase):
             ],
             timeout=600,
         )
+
+        for profile_name in profile_names:
+            invariant_sql = PROFILE_INVARIANTS.get(profile_name)
+            if invariant_sql is None:
+                self.fail(f"No post-run invariant defined for bundled profile {profile_name}")
+            exit_code, output = self.exec_admin_sql(WORKLOAD_DB, invariant_sql)
+            self.assertEqual(
+                (exit_code, output.strip()),
+                (0, "ok"),
+                f"Invariant failed for profile {profile_name}",
+            )
 
     def test_scheduler_recovers_deleted_target_database(self):
         state_file = "state/recovery-smoke.yml"

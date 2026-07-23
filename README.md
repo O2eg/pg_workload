@@ -172,13 +172,24 @@ Use `--bin-dir /path/to/postgresql/bin` when client binaries are outside
 | `many_objects` | Metadata-heavy schemas and partitions | scale-aware SQL object creation |
 | `emulate_errors` | Intentional SQL errors | SQL seed rows only |
 | `pss_overflow` | `pg_stat_statements` churn | scaled Python generator; extension/preload required |
+| `queue_skip_locked` | Producer/consumer task queue with `FOR UPDATE SKIP LOCKED` | synthetic Python generator |
+| `jsonb_docs` | JSONB document store with GIN containment and `jsonb_set` updates | synthetic Python generator |
+| `partition_aging` | Daily-partitioned time-series with partition pruning and aging DDL | synthetic Python generator |
+| `bloat_vacuum` | Dead-tuple churn from non-HOT updates with scheduled `VACUUM` | synthetic Python generator |
 
 No profile requires a dump, CSV file, or network download. The Pagila schema is redistributed
 under its upstream license; see `THIRD_PARTY_NOTICES.md`. Its rows are generated locally. The
 bundled `imdb` profile is an original, compact movie-domain model and does not contain Join Order
 Benchmark SQL or IMDB source data.
 
+Every profile directory contains a `README.md` with the scenario description, its jobs, the
+pg_diag sections it is meant to exercise, and scale/observation guidance.
+
 ## Profile contract
+
+See [docs/profile-authoring-cookbook.md](docs/profile-authoring-cookbook.md) for a complete
+guide to writing custom profiles, including generator conventions and worked recipes for
+queue, JSONB, partitioning, and bloat scenarios.
 
 Profiles live at `data/<profile>/profile.yml`. Version 1 is identified by the stable string
 `pg_workload/v1`:
@@ -189,6 +200,7 @@ name: my_workload
 schema: my_workload
 description: Small example workload.
 requires_write: false
+min_pg_version: 12            # optional major-version floor for the target server
 
 prepare:
   steps:
@@ -226,6 +238,7 @@ conditions that JSON Schema alone cannot safely enforce:
 - job names are unique and types are `pgbench` or `psql`;
 - a pgbench job defines exactly one of `duration` or `transactions`;
 - threads do not exceed clients;
+- `min_pg_version`, when present, is an integer major version of at least 10;
 - SQL files, generators, script globs, and logs stay inside their profile boundary even when
   symlinks are present;
 - generator steps reference an existing Python file;
@@ -233,7 +246,10 @@ conditions that JSON Schema alone cannot safely enforce:
 
 `validate` checks the complete contract and all local paths without connecting to PostgreSQL.
 `install` executes `prepare.steps` in declared order. A normal data profile therefore creates its
-schema, runs its generator, and only then creates indexes and statistics.
+schema, runs its generator, and only then creates indexes and statistics. When a profile declares
+`min_pg_version`, `install` also queries the target `server_version_num` and refuses to install
+on an older server — this fails fast instead of breaking later on a missing feature
+(for example, `jsonb_docs` requires PostgreSQL 12 for SQL/JSON path queries).
 
 ```bash
 pg-workload validate
@@ -281,6 +297,10 @@ pg-workload run --profile simple_stock --pgbench-transactions 100
 | `simple_stock_spec_symbols` | the same cardinalities with hostile and Unicode identifiers/values |
 | `imdb` | 10,000 companies; 100,000 people; 100,000 titles; 1,300,000 fact rows |
 | `pagila` | 600 customers; 1,000 films; 4,500 inventory; 16,000 rentals; 16,500 payments |
+| `queue_skip_locked` | 20,000 pending + 5,000 done queue tasks |
+| `jsonb_docs` | 50,000 JSONB documents |
+| `partition_aging` | 33 daily partitions; 200,000 events skewed toward recent days |
+| `bloat_vacuum` | 100,000 accounts, pre-bloated by one non-HOT update round |
 
 For example, `--scale 2` approximately doubles scalable tables. Very small values retain a
 profile-specific minimum so foreign-key structure and query selectivity remain meaningful in CI.
@@ -358,6 +378,7 @@ After `init`, the working directory is:
 project/
   data/<profile>/
     profile.yml
+    README.md             # scenario, jobs, pg_diag watch list, scale guidance
     generator.py          # only when the profile needs table data
     sql/
     log/                 # runtime, ignored

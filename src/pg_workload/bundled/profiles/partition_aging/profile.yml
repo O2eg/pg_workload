@@ -1,0 +1,77 @@
+api_version: pg_workload/v1
+name: partition_aging
+schema: partition_aging
+description: Daily-partitioned time-series with hot ingest, pruning reads, and partition aging.
+requires_write: true
+prepare:
+  steps:
+    - type: sql
+      path: sql/events-schema.sql
+    - type: generator
+      path: generator.py
+    - type: sql
+      command: "ANALYZE partition_aging.events;"
+jobs:
+  - name: ingest
+    type: pgbench
+    interval: 60
+    log: ingest.log
+    no_vacuum: true
+    clients: 2
+    threads: 2
+    transactions: 5
+    scripts:
+      - path: sql/01_ingest.sql
+  - name: readers
+    type: pgbench
+    interval: 60
+    log: readers.log
+    no_vacuum: true
+    clients: 2
+    threads: 2
+    transactions: 5
+    scripts:
+      - path: sql/02_read_recent.sql
+        weight: 5
+      - path: sql/03_read_history.sql
+        weight: 1
+  - name: aging
+    type: psql
+    interval: 3600
+    log: aging.log
+    command: >-
+      DO $$
+      DECLARE
+          tomorrow date := current_date + 1;
+          part_name text := format('events_%s', to_char(tomorrow, 'YYYY_MM_DD'));
+          old record;
+      BEGIN
+          IF NOT EXISTS (
+              SELECT 1
+              FROM pg_class c
+              JOIN pg_namespace n ON n.oid = c.relnamespace
+              WHERE n.nspname = 'partition_aging' AND c.relname = part_name
+          ) THEN
+              EXECUTE format(
+                  'CREATE TABLE partition_aging.%I PARTITION OF partition_aging.events
+                   FOR VALUES FROM (%L) TO (%L)',
+                  part_name, tomorrow, tomorrow + 1
+              );
+          END IF;
+
+          FOR old IN
+              SELECT c.relname
+              FROM pg_inherits i
+              JOIN pg_class c ON c.oid = i.inhrelid
+              JOIN pg_namespace n ON n.oid = c.relnamespace
+              JOIN pg_class p ON p.oid = i.inhparent
+              JOIN pg_namespace pn ON pn.oid = p.relnamespace
+              WHERE pn.nspname = 'partition_aging'
+                AND p.relname = 'events'
+                AND c.relname ~ '^events_[0-9]{4}_[0-9]{2}_[0-9]{2}$'
+                AND to_date(substring(c.relname from 8), 'YYYY_MM_DD') < current_date - 30
+          LOOP
+              EXECUTE format('DROP TABLE partition_aging.%I', old.relname);
+          END LOOP;
+      END
+      $$;

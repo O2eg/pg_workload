@@ -68,6 +68,7 @@ def profile_descriptor(profile: Profile) -> dict[str, Any]:
         "api_version": profile.data.get("api_version"),
         "schema": profile.schema,
         "requires_write": profile.data.get("requires_write", True),
+        "min_pg_version": profile.data.get("min_pg_version"),
         "requires_preload_libraries": sorted(
             str(value) for value in profile.data.get("requires_preload_libraries", []) or []
         ),

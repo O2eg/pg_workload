@@ -8,11 +8,14 @@ import subprocess
 import sys
 import tempfile
 import time
+import types
 import unittest
 from pathlib import Path
 from unittest import mock
 
 from pg_workload.cli import main
+from pg_workload.common import load_yaml
+from pg_workload.runner import query_server_version_num
 from pg_workload.state import enable_profiles
 
 try:
@@ -352,6 +355,72 @@ class WorkloadGeneratorTests(unittest.TestCase):
             self.assertIn("-c 2", output)
             self.assertIn("-j 1", output)
             self.assertIn("-t 5", output)
+            self.assertNotIn("-T 9", output)
+
+    def test_pgbench_cli_duration_overrides_profile_transactions(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "sql").mkdir()
+            (root / "sql" / "01_workload.sql").write_text("SELECT 1;\n", encoding="utf-8")
+            profile = self.workload.Profile(
+                root,
+                {
+                    "api_version": self.workload.API_VERSION,
+                    "name": "tx_profile",
+                    "jobs": [
+                        {
+                            "name": "main",
+                            "type": "pgbench",
+                            "clients": 2,
+                            "threads": 1,
+                            "transactions": 5,
+                        }
+                    ],
+                },
+            )
+            config = self.runtime_config_for_logs(tmpdir, dry_run=True, verbose=True)
+            config.pgbench_duration = 7
+            client = self.workload.PgClient(config)
+            captured = io.StringIO()
+
+            with contextlib.redirect_stdout(captured):
+                client.run_pgbench(profile, profile.job_by_name("main"), root / "log" / "main.log")
+
+            output = captured.getvalue()
+            self.assertIn("-T 7", output)
+            self.assertNotIn("-t 5", output)
+
+    def test_pgbench_cli_transactions_override_profile_duration(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "sql").mkdir()
+            (root / "sql" / "01_workload.sql").write_text("SELECT 1;\n", encoding="utf-8")
+            profile = self.workload.Profile(
+                root,
+                {
+                    "api_version": self.workload.API_VERSION,
+                    "name": "dur_profile",
+                    "jobs": [
+                        {
+                            "name": "main",
+                            "type": "pgbench",
+                            "clients": 2,
+                            "threads": 1,
+                            "duration": 9,
+                        }
+                    ],
+                },
+            )
+            config = self.runtime_config_for_logs(tmpdir, dry_run=True, verbose=True)
+            config.pgbench_transactions = 4
+            client = self.workload.PgClient(config)
+            captured = io.StringIO()
+
+            with contextlib.redirect_stdout(captured):
+                client.run_pgbench(profile, profile.job_by_name("main"), root / "log" / "main.log")
+
+            output = captured.getvalue()
+            self.assertIn("-t 4", output)
             self.assertNotIn("-T 9", output)
 
     def test_pgbench_job_defaults_to_two_clients_and_two_threads(self):
@@ -1342,6 +1411,101 @@ class WorkloadGeneratorTests(unittest.TestCase):
             self.assertIn("Job failed expected_failure:main", stderr)
             self.assertIn("Recovery skipped for expected_failure:main: recover_on_failure=false", stderr)
             self.assertFalse(recovery_marker.exists(), "scheduler unexpectedly started recovery")
+
+
+class MinPgVersionTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.workload = load_module()
+
+    def _profile(self, tmpdir, min_pg_version):
+        return self.workload.Profile(
+            Path(tmpdir),
+            {
+                "api_version": self.workload.API_VERSION,
+                "name": "versioned",
+                "min_pg_version": min_pg_version,
+                "jobs": [
+                    {
+                        "name": "main",
+                        "type": "psql",
+                        "interval": 60,
+                        "command": "SELECT 1;",
+                    }
+                ],
+            },
+        )
+
+    def test_validate_rejects_invalid_min_pg_version(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            for invalid in ("12", 9, True, 12.5):
+                profile = self._profile(tmpdir, invalid)
+                errors = self.workload.validate_profile(profile)
+                self.assertTrue(
+                    any("min_pg_version" in error for error in errors),
+                    f"min_pg_version={invalid!r} was not rejected",
+                )
+
+    def test_validate_accepts_min_pg_version(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            profile = self._profile(tmpdir, 12)
+            self.assertEqual(self.workload.validate_profile(profile), [])
+
+    def test_check_min_pg_version_raises_for_old_server(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            profile = self._profile(tmpdir, 12)
+            with self.assertRaisesRegex(self.workload.WorkloadError, "requires PostgreSQL >= 12"):
+                self.workload.check_min_pg_version(profile, 100000)
+            self.workload.check_min_pg_version(profile, 120000)
+            self.workload.check_min_pg_version(profile, 180000)
+
+    def test_check_min_pg_version_is_optional(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            profile = self.workload.Profile(
+                Path(tmpdir),
+                {
+                    "api_version": self.workload.API_VERSION,
+                    "name": "unversioned",
+                    "jobs": [{"name": "main", "type": "psql", "interval": 60, "command": "SELECT 1;"}],
+                },
+            )
+            self.workload.check_min_pg_version(profile, 90600)
+
+    def test_query_server_version_num_parses_and_rejects_garbage(self):
+        class FakeClient:
+            def __init__(self, value):
+                self.value = value
+
+            def query_scalar(self, dbname, user, password, sql):
+                return self.value
+
+        config = types.SimpleNamespace(dbname="d", workload_user="u", workload_password=None)
+        self.assertEqual(query_server_version_num(FakeClient("180004"), config), 180004)
+        with self.assertRaisesRegex(self.workload.WorkloadError, "Cannot parse server_version_num"):
+            query_server_version_num(FakeClient("not-a-version"), config)
+
+    def test_jsonb_docs_declares_min_pg_version_12(self):
+        manifest = self.workload.bundled_profiles_root() / "jsonb_docs" / "profile.yml"
+        profile = self.workload.Profile(manifest.parent, load_yaml(manifest))
+        self.assertEqual(profile.data.get("min_pg_version"), 12)
+        self.assertEqual(self.workload.validate_profile(profile), [])
+
+
+class BundledProfileReadmeTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.workload = load_module()
+
+    def test_every_bundled_profile_ships_a_readme(self):
+        root = self.workload.bundled_profiles_root()
+        manifests = sorted(root.glob("*/profile.yml"))
+        self.assertTrue(manifests)
+        for manifest in manifests:
+            readme = manifest.parent / "README.md"
+            self.assertTrue(readme.is_file(), f"missing README.md for bundled profile {manifest.parent.name}")
+            content = readme.read_text(encoding="utf-8")
+            for section in ("## Jobs", "## What to watch in pg_diag", "## Recommended scale and observation window"):
+                self.assertIn(section, content, f"{manifest.parent.name}/README.md misses section {section!r}")
 
 
 if __name__ == "__main__":

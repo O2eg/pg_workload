@@ -1,6 +1,6 @@
 """PostgreSQL workload generation and scheduling tools."""
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 from pg_workload.assets import bundled_profiles_root, initialize_project
 from pg_workload.cli import build_parser
@@ -15,7 +15,7 @@ from pg_workload.profiles import (
     validate_profile,
 )
 from pg_workload.resources import CpuSample, ResourceGuard, assert_resources_available
-from pg_workload.runner import check_profile_requirements, install_profiles, prepare_database
+from pg_workload.runner import check_min_pg_version, check_profile_requirements, install_profiles, prepare_database
 from pg_workload.scheduler import job_recover_on_failure
 from pg_workload.state import effective_schedule, load_state, update_job_state
 
@@ -32,6 +32,7 @@ __all__ = [
     "build_parser",
     "build_runtime_config",
     "bundled_profiles_root",
+    "check_min_pg_version",
     "check_profile_requirements",
     "effective_schedule",
     "file_lock",

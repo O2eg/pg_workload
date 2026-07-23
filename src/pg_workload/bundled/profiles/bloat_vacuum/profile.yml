@@ -1,0 +1,37 @@
+api_version: pg_workload/v1
+name: bloat_vacuum
+schema: bloat_vacuum
+description: Dead-tuple churn from non-HOT updates with scheduled VACUUM and bloat reporting.
+requires_write: true
+prepare:
+  steps:
+    - type: sql
+      path: sql/accounts-schema.sql
+    - type: generator
+      path: generator.py
+jobs:
+  - name: churn
+    type: pgbench
+    interval: 60
+    log: churn.log
+    no_vacuum: true
+    clients: 2
+    threads: 2
+    transactions: 5
+    scripts:
+      - path: sql/01_churn.sql
+  - name: vacuum_worker
+    type: psql
+    interval: 300
+    log: vacuum_worker.log
+    command: "VACUUM (ANALYZE) bloat_vacuum.accounts;"
+  - name: bloat_report
+    type: psql
+    interval: 600
+    log: bloat_report.log
+    command: >-
+      SELECT relname, n_live_tup, n_dead_tup,
+             round(100.0 * n_dead_tup / NULLIF(n_live_tup + n_dead_tup, 0), 2) AS dead_pct,
+             vacuum_count, autovacuum_count, last_vacuum, last_autovacuum
+      FROM pg_stat_user_tables
+      WHERE schemaname = 'bloat_vacuum';

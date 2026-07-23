@@ -1,0 +1,45 @@
+api_version: pg_workload/v1
+name: queue_skip_locked
+schema: queue_skip_locked
+description: Concurrent producer/consumer task queue using FOR UPDATE SKIP LOCKED.
+requires_write: true
+prepare:
+  steps:
+    - type: sql
+      path: sql/queue-schema.sql
+    - type: generator
+      path: generator.py
+jobs:
+  - name: producer
+    type: pgbench
+    interval: 60
+    log: producer.log
+    no_vacuum: true
+    clients: 2
+    threads: 2
+    transactions: 5
+    scripts:
+      - path: sql/01_enqueue.sql
+  - name: consumer
+    type: pgbench
+    interval: 60
+    log: consumer.log
+    no_vacuum: true
+    clients: 4
+    threads: 2
+    transactions: 5
+    scripts:
+      - path: sql/02_dequeue.sql
+        weight: 3
+      - path: sql/03_settle.sql
+        weight: 2
+  - name: sweeper
+    type: psql
+    interval: 600
+    log: sweeper.log
+    command: >-
+      UPDATE queue_skip_locked.tasks
+      SET status = 'pending', started_at = NULL
+      WHERE status = 'processing' AND started_at < now() - interval '10 minutes';
+      DELETE FROM queue_skip_locked.tasks
+      WHERE status IN ('done', 'failed') AND finished_at < now() - interval '1 day';

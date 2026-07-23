@@ -1,0 +1,38 @@
+api_version: pg_workload/v1
+name: jsonb_docs
+schema: jsonb_docs
+description: Document-store workload over jsonb with GIN containment and jsonb_set updates.
+requires_write: true
+min_pg_version: 12
+prepare:
+  steps:
+    - type: sql
+      path: sql/docs-schema.sql
+    - type: generator
+      path: generator.py
+jobs:
+  - name: writers
+    type: pgbench
+    interval: 60
+    log: writers.log
+    no_vacuum: true
+    clients: 2
+    threads: 2
+    transactions: 5
+    scripts:
+      - path: sql/01_write.sql
+  - name: readers
+    type: pgbench
+    interval: 60
+    log: readers.log
+    no_vacuum: true
+    clients: 2
+    threads: 2
+    transactions: 5
+    scripts:
+      - path: sql/02_read.sql
+  - name: analyze_docs
+    type: psql
+    interval: 1800
+    log: analyze_docs.log
+    command: "ANALYZE jsonb_docs.documents;"

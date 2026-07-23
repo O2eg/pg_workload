@@ -157,11 +157,42 @@ def check_profile_requirements(client: PgClient, config: RuntimeConfig, profile:
         )
 
 
+def check_min_pg_version(profile: Profile, server_version_num: int) -> None:
+    """Reject a profile whose min_pg_version exceeds the target server version."""
+    min_pg_version = profile.data.get("min_pg_version")
+    if min_pg_version is None:
+        return
+    required = int(min_pg_version) * 10000
+    if server_version_num < required:
+        raise WorkloadError(
+            f"Profile {profile.name} requires PostgreSQL >= {int(min_pg_version)} (min_pg_version), "
+            f"but the target server reports server_version_num={server_version_num}"
+        )
+
+
+def query_server_version_num(client: PgClient, config: RuntimeConfig) -> int:
+    raw_version = client.query_scalar(
+        config.dbname,
+        config.workload_user,
+        config.workload_password,
+        "SHOW server_version_num;",
+    )
+    try:
+        return int(raw_version)
+    except ValueError as exc:
+        raise WorkloadError(f"Cannot parse server_version_num reported by the target: {raw_version!r}") from exc
+
+
 def install_profiles(client: PgClient, config: RuntimeConfig, profiles: list[Profile]) -> None:
+    server_version_num: int | None = None
     for profile in profiles:
         assert_resources_available(config, f"installing profile {profile.name}")
         print(f"Installing profile: {profile.name}")
         check_profile_requirements(client, config, profile)
+        if profile.data.get("min_pg_version") is not None and not config.dry_run:
+            if server_version_num is None:
+                server_version_num = query_server_version_num(client, config)
+            check_min_pg_version(profile, server_version_num)
         for step in profile.prepare_steps:
             step_type = step["type"]
             if step_type == "generator":
