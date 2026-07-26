@@ -8,6 +8,7 @@ __pycache__/
 htmlcov/
 .venv/
 venv/
+.idea/
 
 # Build and release
 /build/

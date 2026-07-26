@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pg-workload"
-version = "0.4.0"
+version = "0.4.1"
 description = "PostgreSQL workload emulator for diagnostic and observability testing"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -31,7 +31,7 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/O2eg/pg_workload"
+Homepage = "https://o2eg.com/"
 Repository = "https://github.com/O2eg/pg_workload"
 Issues = "https://github.com/O2eg/pg_workload/issues"
 
