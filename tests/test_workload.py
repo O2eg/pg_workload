@@ -48,6 +48,11 @@ class WorkloadGeneratorTests(unittest.TestCase):
             self.assertEqual(errors, [])
             imdb_generator = Path(tmpdir) / "data" / "imdb" / "generator.py"
             self.assertIn("g::bigint * 104729", imdb_generator.read_text(encoding="utf-8"))
+            partition_generator = (Path(tmpdir) / "data" / "partition_aging" / "generator.py").read_text(
+                encoding="utf-8"
+            )
+            self.assertIn("partition_day := current_date + day_offset", partition_generator)
+            self.assertNotIn("date.today()", partition_generator)
 
     def test_default_pg_major_is_18(self):
         parser = self.workload.build_parser()

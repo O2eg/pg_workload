@@ -4,14 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pg-workload"
-version = "0.4.1"
+version = "0.4.2"
 description = "PostgreSQL workload emulator for diagnostic and observability testing"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
 license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 authors = [
-  { name = "O2eg", email = "oleg.ispu@yandex.ru" }
+  { name = "O2eg", email = "oleg.ispu@gmail.com" }
 ]
 keywords = ["postgresql", "workload", "emulation", "diagnostics", "observability"]
 dependencies = [

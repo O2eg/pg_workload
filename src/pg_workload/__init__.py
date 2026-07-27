@@ -1,6 +1,6 @@
 """PostgreSQL workload generation and scheduling tools."""
 
-__version__ = "0.4.1"
+__version__ = "0.4.2"
 
 from pg_workload.assets import bundled_profiles_root, initialize_project
 from pg_workload.cli import build_parser
