@@ -1,16 +1,16 @@
 api_version: pg_workload/v1
 name: imdb
 schema: imdb
-description: Synthetic movie-domain analytical workload with correlated relational data.
+description: Rich synthetic movie-domain workload with 21-table join and filter patterns.
 requires_write: false
 prepare:
   steps:
     - type: sql
-      path: sql/schema.sql
+      path: sql/imdb-schema.sql
     - type: generator
       path: generator.py
     - type: sql
-      path: sql/indexes.sql
+      path: sql/imdb-fkindexes.sql
 jobs:
   - name: analytical_selects
     type: pgbench
@@ -20,3 +20,6 @@ jobs:
     clients: 2
     threads: 2
     transactions: 5
+    scripts_glob:
+      - sql/[0-9][0-9]_*.sql
+      - sql/select_*.sql

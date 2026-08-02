@@ -393,6 +393,52 @@ class DockerPostgres18SmokeTest(unittest.TestCase):
             time.sleep(1)
         self.fail(f"Timed out waiting for SQL result {expected!r}; last output: {last_output!r}")
 
+    def assert_imdb_scripts_hit_generated_rows(self):
+        sql_dir = self.smoke_root / "data" / "imdb" / "sql"
+        scripts = sorted(sql_dir.glob("[0-9][0-9]_*.sql")) + sorted(
+            sql_dir.glob("select_*.sql"), key=lambda path: int(path.stem.split("_")[1])
+        )
+        self.assertEqual(len(scripts), 38)
+        env = self.workload_env()
+        env["PGPASSWORD"] = WORKLOAD_PASSWORD
+        null_marker = "__PG_WORKLOAD_NULL__"
+
+        for path in scripts:
+            proc = subprocess.run(
+                [
+                    str(self.bin_dir / "psql"),
+                    "-X",
+                    "-q",
+                    "-A",
+                    "-t",
+                    "-P",
+                    f"null={null_marker}",
+                    "-v",
+                    "ON_ERROR_STOP=1",
+                    "-h",
+                    "127.0.0.1",
+                    "-p",
+                    "5432",
+                    "-U",
+                    WORKLOAD_USER,
+                    "-d",
+                    WORKLOAD_DB,
+                    "-f",
+                    str(path),
+                ],
+                cwd=self.smoke_root,
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            self.assertEqual(proc.returncode, 0, f"{path.name}: {proc.stderr}")
+            self.assertNotIn(
+                null_marker,
+                proc.stdout,
+                f"{path.name} did not match the generated anchor rows:\n{proc.stdout}",
+            )
+
     def target_args(self, *, root=None, dbname=WORKLOAD_DB):
         return [
             "--root",
@@ -435,6 +481,7 @@ class DockerPostgres18SmokeTest(unittest.TestCase):
             timeout=120,
         )
         self.run_workload(["install", *self.target_args(), "--profile", workload_arg], timeout=600)
+        self.assert_imdb_scripts_hit_generated_rows()
         self.run_workload(
             [
                 "run",

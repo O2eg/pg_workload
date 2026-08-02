@@ -27,11 +27,9 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-## Join Order Benchmark and source IMDB data
+## Synthetic movie-domain workload
 
-The original development workspace may contain local Join Order Benchmark SQL
-and source IMDB data. They are deliberately excluded from the source
-distribution and wheel because the upstream repository does not publish an
-explicit license. The bundled profile named `imdb` is an independent synthetic
-movie-domain schema, generator, and workload; it does not contain or derive from
-those excluded files.
+The bundled `imdb` profile includes SQL query shapes migrated and adapted from
+the predecessor `pg_workload_generator` implementation. Its data generator is
+local and deterministic. No source IMDB dataset, CSV archive, or downloaded row
+data is included in the source distribution or wheel.

@@ -197,8 +197,8 @@ Use `--bin-dir /path/to/postgresql/bin` when client binaries are outside
 
 No profile requires a dump, CSV file, or network download. The Pagila schema is redistributed
 under its upstream license; see `THIRD_PARTY_NOTICES.md`. Its rows are generated locally. The
-bundled `imdb` profile is an original, compact movie-domain model and does not contain Join Order
-Benchmark SQL or IMDB source data.
+bundled `imdb` profile contains a full synthetic 21-table movie-domain model, 38 analytical
+scripts, and 113 SELECT variants; it contains no IMDB source data.
 
 Every profile directory contains a `README.md` with the scenario description, its jobs, the
 pg_diag sections it is meant to exercise, and scale/observation guidance.
@@ -313,7 +313,7 @@ pg-workload run --profile simple_stock --pgbench-transactions 100
 |---|---|
 | `simple_stock` | 150,000 product groups; 1,000,000 SKUs; 1,000,000 stock rows |
 | `simple_stock_spec_symbols` | the same cardinalities with hostile and Unicode identifiers/values |
-| `imdb` | 10,000 companies; 100,000 people; 100,000 titles; 1,300,000 fact rows |
+| `imdb` | 21 tables; 10,000 companies; 100,000 people; 100,000 titles; ~2,000,000 related rows |
 | `pagila` | 600 customers; 1,000 films; 4,500 inventory; 16,000 rentals; 16,500 payments |
 | `queue_skip_locked` | 20,000 pending + 5,000 done queue tasks |
 | `jsonb_docs` | 50,000 JSONB documents |

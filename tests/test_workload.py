@@ -4,6 +4,7 @@ import dataclasses
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -48,6 +49,24 @@ class WorkloadGeneratorTests(unittest.TestCase):
             self.assertEqual(errors, [])
             imdb_generator = Path(tmpdir) / "data" / "imdb" / "generator.py"
             self.assertIn("g::bigint * 104729", imdb_generator.read_text(encoding="utf-8"))
+            imdb = profiles["imdb"]
+            imdb_scripts = [script["path"] for script in imdb.expand_scripts(imdb.job_by_name("analytical_selects"))]
+            self.assertEqual(len(imdb_scripts), 38)
+            self.assertEqual(
+                imdb_scripts[:5],
+                [
+                    "sql/01_company_catalog.sql",
+                    "sql/02_people_by_keyword.sql",
+                    "sql/03_keyword_trends.sql",
+                    "sql/04_genre_cast.sql",
+                    "sql/05_join_stress.sql",
+                ],
+            )
+            self.assertEqual(
+                imdb_scripts[5:8],
+                ["sql/select_1.sql", "sql/select_2.sql", "sql/select_3.sql"],
+            )
+            self.assertEqual(imdb_scripts[-1], "sql/select_33.sql")
             partition_generator = (Path(tmpdir) / "data" / "partition_aging" / "generator.py").read_text(
                 encoding="utf-8"
             )
@@ -317,6 +336,10 @@ class WorkloadGeneratorTests(unittest.TestCase):
             pagila_scripts = [
                 script["path"] for script in profiles["pagila"].expand_scripts(profiles["pagila"].job_by_name("main"))
             ]
+            imdb_scripts = [
+                script["path"]
+                for script in profiles["imdb"].expand_scripts(profiles["imdb"].job_by_name("analytical_selects"))
+            ]
 
             self.assertEqual(
                 pagila_scripts,
@@ -327,6 +350,55 @@ class WorkloadGeneratorTests(unittest.TestCase):
                     "sql/04_delete.sql",
                 ],
             )
+            self.assertEqual(
+                imdb_scripts[:2],
+                ["sql/01_company_catalog.sql", "sql/02_people_by_keyword.sql"],
+            )
+            self.assertEqual(
+                imdb_scripts[5:8],
+                ["sql/select_1.sql", "sql/select_2.sql", "sql/select_3.sql"],
+            )
+            self.assertEqual(imdb_scripts[14], "sql/select_10.sql")
+
+    def test_imdb_profile_restores_full_schema_and_index_coverage(self):
+        profile_root = self.workload.bundled_profiles_root() / "imdb"
+        schema = (profile_root / "sql" / "imdb-schema.sql").read_text(encoding="utf-8")
+        indexes = (profile_root / "sql" / "imdb-fkindexes.sql").read_text(encoding="utf-8")
+        expected_tables = {
+            "aka_name",
+            "aka_title",
+            "cast_info",
+            "char_name",
+            "comp_cast_type",
+            "company_name",
+            "company_type",
+            "complete_cast",
+            "info_type",
+            "keyword",
+            "kind_type",
+            "link_type",
+            "movie_companies",
+            "movie_info",
+            "movie_info_idx",
+            "movie_keyword",
+            "movie_link",
+            "name",
+            "person_info",
+            "role_type",
+            "title",
+        }
+
+        created_tables = set(re.findall(r"CREATE TABLE ([a-z_]+)", schema))
+        self.assertEqual(created_tables, expected_tables)
+        for table in expected_tables:
+            self.assertIn(f"analyze {table};", indexes.lower())
+
+        scripts = list((profile_root / "sql").glob("[0-9][0-9]_*.sql"))
+        scripts.extend((profile_root / "sql").glob("select_*.sql"))
+        select_variants = sum(
+            len(re.findall(r"^SELECT ", path.read_text(encoding="utf-8"), flags=re.MULTILINE)) for path in scripts
+        )
+        self.assertEqual(select_variants, 113)
 
     def test_pgbench_job_transactions_override_duration(self):
         with tempfile.TemporaryDirectory() as tmpdir:
