@@ -152,7 +152,11 @@ instead of `--passfile`; `PGPASSWORD` is accepted only as an admin-password comp
 `prepare-db --recreate` drops only the selected workload database after terminating its sessions;
 it does not drop the workload role.
 Unless `--extensions` is supplied, it creates both `pg_stat_statements` and
-`pg_buffercache`, matching the default pg_diag metric set used by pg_play.
+`pg_buffercache`, and also installs `pg_stat_kcache` and `pg_wait_sampling` when
+the server provides them. Managed `pg_stand` images include and preload the required
+libraries, and new databases inherit the extensions from `template1`. An explicit
+`--extensions` list replaces both default lists. Optional extension choices are
+included in the machine plan.
 
 ## Targets
 

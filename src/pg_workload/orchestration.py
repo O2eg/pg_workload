@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from pg_workload import __version__
-from pg_workload.common import DEFAULT_EXTENSIONS, csv_list, resolve_relative_path
+from pg_workload.common import DEFAULT_EXTENSIONS, DEFAULT_OPTIONAL_EXTENSIONS, csv_list, resolve_relative_path
 from pg_workload.profiles import Profile
 from pg_workload.state import load_state, state_with_profiles_enabled
 
@@ -140,6 +140,9 @@ def execution_plan(args: Any, profiles: list[Profile], operation: str) -> dict[s
             "workload_superuser": getattr(args, "workload_superuser", False),
             "rotate_workload_password": getattr(args, "rotate_workload_password", False),
             "extensions": sorted(set(csv_list(getattr(args, "extensions", None)) or DEFAULT_EXTENSIONS)),
+            "optional_extensions": (
+                [] if csv_list(getattr(args, "extensions", None)) else sorted(DEFAULT_OPTIONAL_EXTENSIONS)
+            ),
             "preload_libraries": sorted(set(csv_list(getattr(args, "preload_libraries", None)))),
         },
         "execution": {

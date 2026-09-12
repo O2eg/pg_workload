@@ -32,6 +32,8 @@ DEFAULT_LOG_BACKUPS = 10
 DEFAULT_PGBENCH_CLIENTS = 2
 DEFAULT_PGBENCH_THREADS = 2
 DEFAULT_EXTENSIONS = ("pg_stat_statements", "pg_buffercache")
+# Installed by prepare-db only when the server image provides them.
+DEFAULT_OPTIONAL_EXTENSIONS = ("pg_stat_kcache", "pg_wait_sampling")
 DEFAULT_SCRIPT_PATTERNS = ("sql/[0-9][0-9]_*.sql", "sql/select_*.sql")
 DEFAULT_RESOURCE_DISK_MAX_USED_PCT = 90
 DEFAULT_RESOURCE_MEM_MIN_AVAILABLE_PCT = 10

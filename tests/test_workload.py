@@ -912,6 +912,8 @@ class WorkloadGeneratorTests(unittest.TestCase):
             def query_scalar(self, dbname, user, password, sql):
                 if "pg_roles" in sql or "pg_database" in sql:
                     return "1"
+                if "pg_available_extensions" in sql:
+                    return "1"
                 return "auto_explain,pg_stat_statements"
 
             def run_psql(self, dbname, user, password, *, command, **kwargs):
@@ -933,6 +935,8 @@ class WorkloadGeneratorTests(unittest.TestCase):
 
             self.assertIn('CREATE EXTENSION IF NOT EXISTS "pg_stat_statements";', client.commands)
             self.assertIn('CREATE EXTENSION IF NOT EXISTS "pg_buffercache";', client.commands)
+            self.assertIn('CREATE EXTENSION IF NOT EXISTS "pg_stat_kcache";', client.commands)
+            self.assertIn('CREATE EXTENSION IF NOT EXISTS "pg_wait_sampling";', client.commands)
 
     def test_job_recover_on_failure_defaults_to_true(self):
         self.assertTrue(self.workload.job_recover_on_failure({}))

@@ -5,6 +5,7 @@ from typing import Any
 
 from pg_workload.common import (
     DEFAULT_EXTENSIONS,
+    DEFAULT_OPTIONAL_EXTENSIONS,
     WorkloadError,
     as_string_list,
     csv_list,
@@ -101,6 +102,23 @@ def prepare_database(client: PgClient, config: RuntimeConfig, args: argparse.Nam
             admin_password,
             command=f"CREATE EXTENSION IF NOT EXISTS {safe_extension_name(extension)};",
         )
+    if not csv_list(args.extensions):
+        for extension in DEFAULT_OPTIONAL_EXTENSIONS:
+            available = client.query_scalar(
+                config.dbname,
+                config.admin_user,
+                admin_password,
+                f"SELECT 1 FROM pg_available_extensions WHERE name = {quote_literal(extension)};",
+            )
+            if available:
+                client.run_psql(
+                    config.dbname,
+                    config.admin_user,
+                    admin_password,
+                    command=(f"CREATE EXTENSION IF NOT EXISTS {safe_extension_name(extension)};"),
+                )
+            else:
+                eprint(f"Optional extension {extension} is not available; skipping")
 
     preload_libraries = csv_list(args.preload_libraries) or ["auto_explain", "pg_stat_statements"]
     check_preload_libraries(client, config, admin_password, preload_libraries)
