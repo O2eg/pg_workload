@@ -190,7 +190,7 @@ Use `--bin-dir /path/to/postgresql/bin` when client binaries are outside
 | `simple_stock` | Write-heavy CRUD over related stock tables | synthetic Python generator |
 | `simple_stock_spec_symbols` | Identifier, Unicode, and parser edge cases | synthetic Python generator |
 | `imdb` | Movie-domain analytical joins and skew | synthetic Python generator |
-| `pagila` | Mixed Pagila OLTP | synthetic Python generator |
+| `pagila` | Pagila OLTP with a 50/25/20/5 script mix | synthetic Python generator |
 | `many_objects` | Metadata-heavy schemas and partitions | scale-aware SQL object creation |
 | `emulate_errors` | Intentional SQL errors | SQL seed rows only |
 | `pss_overflow` | `pg_stat_statements` churn | scaled Python generator; extension/preload required |
@@ -344,6 +344,14 @@ It receives the selected connection through standard `PGHOST`, `PGPORT`, `PGDATA
 to `psql`, so generated rows never pass through repository files. Because a locally edited
 generator can execute arbitrary code with the runner account, only run profiles from a trusted
 project directory.
+
+`pagila` and `imdb` use the generators and SQL from `pg_perf_bench` v0.6.1, adapted for
+scheduled workloads. Their local `pg_workload.initialization` loader commits bounded data
+batches (100,000 rows by default), then creates indexes and constraints and analyzes every
+table. It uses the selected `psql` and keeps normal durability settings. These two generators
+also accept `--batch-rows N` when called directly; changing batch size preserves generated
+values (apart from wall-clock `last_update` timestamps). Failed initialization stops the
+command; reinstall the profile to recreate its schema and retry.
 
 ## Desired-state scheduler
 

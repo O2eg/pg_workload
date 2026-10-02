@@ -1,0 +1,86 @@
+[
+  {
+    "name": "aka_name_pkey",
+    "sql": "ALTER TABLE imdb.aka_name ADD CONSTRAINT aka_name_pkey PRIMARY KEY USING INDEX aka_name_pkey;"
+  },
+  {
+    "name": "aka_title_pkey",
+    "sql": "ALTER TABLE imdb.aka_title ADD CONSTRAINT aka_title_pkey PRIMARY KEY USING INDEX aka_title_pkey;"
+  },
+  {
+    "name": "cast_info_pkey",
+    "sql": "ALTER TABLE imdb.cast_info ADD CONSTRAINT cast_info_pkey PRIMARY KEY USING INDEX cast_info_pkey;"
+  },
+  {
+    "name": "char_name_pkey",
+    "sql": "ALTER TABLE imdb.char_name ADD CONSTRAINT char_name_pkey PRIMARY KEY USING INDEX char_name_pkey;"
+  },
+  {
+    "name": "comp_cast_type_pkey",
+    "sql": "ALTER TABLE imdb.comp_cast_type ADD CONSTRAINT comp_cast_type_pkey PRIMARY KEY USING INDEX comp_cast_type_pkey;"
+  },
+  {
+    "name": "company_name_pkey",
+    "sql": "ALTER TABLE imdb.company_name ADD CONSTRAINT company_name_pkey PRIMARY KEY USING INDEX company_name_pkey;"
+  },
+  {
+    "name": "company_type_pkey",
+    "sql": "ALTER TABLE imdb.company_type ADD CONSTRAINT company_type_pkey PRIMARY KEY USING INDEX company_type_pkey;"
+  },
+  {
+    "name": "complete_cast_pkey",
+    "sql": "ALTER TABLE imdb.complete_cast ADD CONSTRAINT complete_cast_pkey PRIMARY KEY USING INDEX complete_cast_pkey;"
+  },
+  {
+    "name": "info_type_pkey",
+    "sql": "ALTER TABLE imdb.info_type ADD CONSTRAINT info_type_pkey PRIMARY KEY USING INDEX info_type_pkey;"
+  },
+  {
+    "name": "keyword_pkey",
+    "sql": "ALTER TABLE imdb.keyword ADD CONSTRAINT keyword_pkey PRIMARY KEY USING INDEX keyword_pkey;"
+  },
+  {
+    "name": "kind_type_pkey",
+    "sql": "ALTER TABLE imdb.kind_type ADD CONSTRAINT kind_type_pkey PRIMARY KEY USING INDEX kind_type_pkey;"
+  },
+  {
+    "name": "link_type_pkey",
+    "sql": "ALTER TABLE imdb.link_type ADD CONSTRAINT link_type_pkey PRIMARY KEY USING INDEX link_type_pkey;"
+  },
+  {
+    "name": "movie_companies_pkey",
+    "sql": "ALTER TABLE imdb.movie_companies ADD CONSTRAINT movie_companies_pkey PRIMARY KEY USING INDEX movie_companies_pkey;"
+  },
+  {
+    "name": "movie_info_pkey",
+    "sql": "ALTER TABLE imdb.movie_info ADD CONSTRAINT movie_info_pkey PRIMARY KEY USING INDEX movie_info_pkey;"
+  },
+  {
+    "name": "movie_info_idx_pkey",
+    "sql": "ALTER TABLE imdb.movie_info_idx ADD CONSTRAINT movie_info_idx_pkey PRIMARY KEY USING INDEX movie_info_idx_pkey;"
+  },
+  {
+    "name": "movie_keyword_pkey",
+    "sql": "ALTER TABLE imdb.movie_keyword ADD CONSTRAINT movie_keyword_pkey PRIMARY KEY USING INDEX movie_keyword_pkey;"
+  },
+  {
+    "name": "movie_link_pkey",
+    "sql": "ALTER TABLE imdb.movie_link ADD CONSTRAINT movie_link_pkey PRIMARY KEY USING INDEX movie_link_pkey;"
+  },
+  {
+    "name": "name_pkey",
+    "sql": "ALTER TABLE imdb.name ADD CONSTRAINT name_pkey PRIMARY KEY USING INDEX name_pkey;"
+  },
+  {
+    "name": "person_info_pkey",
+    "sql": "ALTER TABLE imdb.person_info ADD CONSTRAINT person_info_pkey PRIMARY KEY USING INDEX person_info_pkey;"
+  },
+  {
+    "name": "role_type_pkey",
+    "sql": "ALTER TABLE imdb.role_type ADD CONSTRAINT role_type_pkey PRIMARY KEY USING INDEX role_type_pkey;"
+  },
+  {
+    "name": "title_pkey",
+    "sql": "ALTER TABLE imdb.title ADD CONSTRAINT title_pkey PRIMARY KEY USING INDEX title_pkey;"
+  }
+]

@@ -1,0 +1,250 @@
+[
+  {
+    "name": "aka_name_pkey",
+    "sql": "CREATE UNIQUE INDEX aka_name_pkey ON imdb.aka_name (id);"
+  },
+  {
+    "name": "aka_title_pkey",
+    "sql": "CREATE UNIQUE INDEX aka_title_pkey ON imdb.aka_title (id);"
+  },
+  {
+    "name": "cast_info_pkey",
+    "sql": "CREATE UNIQUE INDEX cast_info_pkey ON imdb.cast_info (id);"
+  },
+  {
+    "name": "char_name_pkey",
+    "sql": "CREATE UNIQUE INDEX char_name_pkey ON imdb.char_name (id);"
+  },
+  {
+    "name": "comp_cast_type_pkey",
+    "sql": "CREATE UNIQUE INDEX comp_cast_type_pkey ON imdb.comp_cast_type (id);"
+  },
+  {
+    "name": "company_name_pkey",
+    "sql": "CREATE UNIQUE INDEX company_name_pkey ON imdb.company_name (id);"
+  },
+  {
+    "name": "company_type_pkey",
+    "sql": "CREATE UNIQUE INDEX company_type_pkey ON imdb.company_type (id);"
+  },
+  {
+    "name": "complete_cast_pkey",
+    "sql": "CREATE UNIQUE INDEX complete_cast_pkey ON imdb.complete_cast (id);"
+  },
+  {
+    "name": "info_type_pkey",
+    "sql": "CREATE UNIQUE INDEX info_type_pkey ON imdb.info_type (id);"
+  },
+  {
+    "name": "keyword_pkey",
+    "sql": "CREATE UNIQUE INDEX keyword_pkey ON imdb.keyword (id);"
+  },
+  {
+    "name": "kind_type_pkey",
+    "sql": "CREATE UNIQUE INDEX kind_type_pkey ON imdb.kind_type (id);"
+  },
+  {
+    "name": "link_type_pkey",
+    "sql": "CREATE UNIQUE INDEX link_type_pkey ON imdb.link_type (id);"
+  },
+  {
+    "name": "movie_companies_pkey",
+    "sql": "CREATE UNIQUE INDEX movie_companies_pkey ON imdb.movie_companies (id);"
+  },
+  {
+    "name": "movie_info_pkey",
+    "sql": "CREATE UNIQUE INDEX movie_info_pkey ON imdb.movie_info (id);"
+  },
+  {
+    "name": "movie_info_idx_pkey",
+    "sql": "CREATE UNIQUE INDEX movie_info_idx_pkey ON imdb.movie_info_idx (id);"
+  },
+  {
+    "name": "movie_keyword_pkey",
+    "sql": "CREATE UNIQUE INDEX movie_keyword_pkey ON imdb.movie_keyword (id);"
+  },
+  {
+    "name": "movie_link_pkey",
+    "sql": "CREATE UNIQUE INDEX movie_link_pkey ON imdb.movie_link (id);"
+  },
+  {
+    "name": "name_pkey",
+    "sql": "CREATE UNIQUE INDEX name_pkey ON imdb.name (id);"
+  },
+  {
+    "name": "person_info_pkey",
+    "sql": "CREATE UNIQUE INDEX person_info_pkey ON imdb.person_info (id);"
+  },
+  {
+    "name": "role_type_pkey",
+    "sql": "CREATE UNIQUE INDEX role_type_pkey ON imdb.role_type (id);"
+  },
+  {
+    "name": "title_pkey",
+    "sql": "CREATE UNIQUE INDEX title_pkey ON imdb.title (id);"
+  },
+  {
+    "name": "company_id_movie_companies",
+    "sql": "create index company_id_movie_companies on movie_companies(company_id);"
+  },
+  {
+    "name": "company_type_id_movie_companies",
+    "sql": "create index company_type_id_movie_companies on movie_companies(company_type_id);"
+  },
+  {
+    "name": "info_type_id_movie_info_idx",
+    "sql": "create index info_type_id_movie_info_idx on movie_info_idx(info_type_id);"
+  },
+  {
+    "name": "info_type_id_movie_info",
+    "sql": "create index info_type_id_movie_info on movie_info(info_type_id);"
+  },
+  {
+    "name": "info_type_id_person_info",
+    "sql": "create index info_type_id_person_info on person_info(info_type_id);"
+  },
+  {
+    "name": "keyword_id_movie_keyword",
+    "sql": "create index keyword_id_movie_keyword on movie_keyword(keyword_id);"
+  },
+  {
+    "name": "kind_id_aka_title",
+    "sql": "create index kind_id_aka_title on aka_title(kind_id);"
+  },
+  {
+    "name": "kind_id_title",
+    "sql": "create index kind_id_title on title(kind_id);"
+  },
+  {
+    "name": "linked_movie_id_movie_link",
+    "sql": "create index linked_movie_id_movie_link on movie_link(linked_movie_id);"
+  },
+  {
+    "name": "link_type_id_movie_link",
+    "sql": "create index link_type_id_movie_link on movie_link(link_type_id);"
+  },
+  {
+    "name": "movie_id_aka_title",
+    "sql": "create index movie_id_aka_title on aka_title(movie_id);"
+  },
+  {
+    "name": "movie_id_cast_info",
+    "sql": "create index movie_id_cast_info on cast_info(movie_id);"
+  },
+  {
+    "name": "movie_id_complete_cast",
+    "sql": "create index movie_id_complete_cast on complete_cast(movie_id);"
+  },
+  {
+    "name": "movie_id_movie_companies",
+    "sql": "create index movie_id_movie_companies on movie_companies(movie_id);"
+  },
+  {
+    "name": "movie_id_movie_info_idx",
+    "sql": "create index movie_id_movie_info_idx on movie_info_idx(movie_id);"
+  },
+  {
+    "name": "movie_id_movie_keyword",
+    "sql": "create index movie_id_movie_keyword on movie_keyword(movie_id);"
+  },
+  {
+    "name": "movie_id_movie_link",
+    "sql": "create index movie_id_movie_link on movie_link(movie_id);"
+  },
+  {
+    "name": "movie_id_movie_info",
+    "sql": "create index movie_id_movie_info on movie_info(movie_id);"
+  },
+  {
+    "name": "person_id_aka_name",
+    "sql": "create index person_id_aka_name on aka_name(person_id);"
+  },
+  {
+    "name": "person_id_cast_info",
+    "sql": "create index person_id_cast_info on cast_info(person_id);"
+  },
+  {
+    "name": "person_id_person_info",
+    "sql": "create index person_id_person_info on person_info(person_id);"
+  },
+  {
+    "name": "person_role_id_cast_info",
+    "sql": "create index person_role_id_cast_info on cast_info(person_role_id);"
+  },
+  {
+    "name": "role_id_cast_info",
+    "sql": "create index role_id_cast_info on cast_info(role_id);"
+  },
+  {
+    "name": "country_code_company_name",
+    "sql": "create index country_code_company_name on company_name(country_code);"
+  },
+  {
+    "name": "name_company_name_pattern",
+    "sql": "create index name_company_name_pattern on company_name(name text_pattern_ops);"
+  },
+  {
+    "name": "kind_company_type",
+    "sql": "create index kind_company_type on company_type(kind);"
+  },
+  {
+    "name": "info_info_type",
+    "sql": "create index info_info_type on info_type(info);"
+  },
+  {
+    "name": "keyword_keyword",
+    "sql": "create index keyword_keyword on keyword(keyword);"
+  },
+  {
+    "name": "kind_kind_type",
+    "sql": "create index kind_kind_type on kind_type(kind);"
+  },
+  {
+    "name": "link_link_type",
+    "sql": "create index link_link_type on link_type(link);"
+  },
+  {
+    "name": "role_role_type",
+    "sql": "create index role_role_type on role_type(role);"
+  },
+  {
+    "name": "kind_comp_cast_type",
+    "sql": "create index kind_comp_cast_type on comp_cast_type(kind);"
+  },
+  {
+    "name": "production_year_title",
+    "sql": "create index production_year_title on title(production_year, kind_id);"
+  },
+  {
+    "name": "movie_company_type_movie_companies",
+    "sql": "create index movie_company_type_movie_companies\n    on movie_companies(movie_id, company_id, company_type_id);"
+  },
+  {
+    "name": "movie_info_type_movie_info",
+    "sql": "create index movie_info_type_movie_info on movie_info(movie_id, info_type_id);"
+  },
+  {
+    "name": "movie_info_type_movie_info_idx",
+    "sql": "create index movie_info_type_movie_info_idx on movie_info_idx(movie_id, info_type_id);"
+  },
+  {
+    "name": "movie_keyword_pair",
+    "sql": "create index movie_keyword_pair on movie_keyword(movie_id, keyword_id);"
+  },
+  {
+    "name": "movie_person_role_cast_info",
+    "sql": "create index movie_person_role_cast_info on cast_info(movie_id, person_id, role_id);"
+  },
+  {
+    "name": "movie_complete_cast",
+    "sql": "create index movie_complete_cast on complete_cast(movie_id, subject_id, status_id);"
+  },
+  {
+    "name": "movie_link_pair",
+    "sql": "create index movie_link_pair on movie_link(movie_id, linked_movie_id, link_type_id);"
+  },
+  {
+    "name": "person_info_pair",
+    "sql": "create index person_info_pair on person_info(person_id, info_type_id);"
+  }
+]

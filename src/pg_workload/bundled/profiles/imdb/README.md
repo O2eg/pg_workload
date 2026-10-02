@@ -6,6 +6,10 @@ It is a workload generator rather than a benchmark: the goal is to keep PostgreS
 produce varied plans and statistics for `auto_explain`, `pg_stat_statements`, and DBA tooling.
 No IMDB source rows, CSV files, archives, or network downloads are required.
 
+The schema, generator and all 38 SQL scripts come from `pg_perf_bench` v0.6.1
+(commit `5eec23ce4c0edf3001bdbdb70339406221a3c903`), with a local psql loader.
+The workload queries are unchanged.
+
 ## Objects (at scale 1)
 
 - The full 21-table relational shape used by the earlier profile, including alternate names and
@@ -15,8 +19,13 @@ No IMDB source rows, CSV files, archives, or network downloads are required.
   2 million fact, relationship, and attribute rows.
 - Deterministic synthetic anchor rows cover the names, years, countries, notes, roles, keywords,
   genres, ratings, and link types selected by every bundled query family.
-- Foreign-key/join-column and selective-filter indexes are created after loading, followed by
-  `ANALYZE` for all 21 tables.
+- Independent deterministic hash streams choose participants, companies, keywords and
+  attribute types/values, avoiding cyclic correlations between a film and its relationships.
+- Identifiers are bigint. The local loader recreates the schema and commits bounded data
+  batches, then builds primary keys, join/filter indexes and constraints and runs `ANALYZE`
+  on all 21 tables. It preserves normal logging and server durability settings.
+- The generator accepts `--batch-rows` (default 100,000); batch size does not change the data.
+  After a loading failure, reinstall the profile to recreate its schema and retry.
 
 ## Jobs
 

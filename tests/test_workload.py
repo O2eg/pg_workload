@@ -47,8 +47,6 @@ class WorkloadGeneratorTests(unittest.TestCase):
             for profile in profiles.values():
                 errors.extend(self.workload.validate_profile(profile))
             self.assertEqual(errors, [])
-            imdb_generator = Path(tmpdir) / "data" / "imdb" / "generator.py"
-            self.assertIn("g::bigint * 104729", imdb_generator.read_text(encoding="utf-8"))
             imdb = profiles["imdb"]
             imdb_scripts = [script["path"] for script in imdb.expand_scripts(imdb.job_by_name("analytical_selects"))]
             self.assertEqual(len(imdb_scripts), 38)
@@ -363,7 +361,7 @@ class WorkloadGeneratorTests(unittest.TestCase):
     def test_imdb_profile_restores_full_schema_and_index_coverage(self):
         profile_root = self.workload.bundled_profiles_root() / "imdb"
         schema = (profile_root / "sql" / "imdb-schema.sql").read_text(encoding="utf-8")
-        indexes = (profile_root / "sql" / "imdb-fkindexes.sql").read_text(encoding="utf-8")
+        indexes = json.loads((profile_root / "initialization-indexes.json").read_text(encoding="utf-8"))
         expected_tables = {
             "aka_name",
             "aka_title",
@@ -390,8 +388,8 @@ class WorkloadGeneratorTests(unittest.TestCase):
 
         created_tables = set(re.findall(r"CREATE TABLE ([a-z_]+)", schema))
         self.assertEqual(created_tables, expected_tables)
-        for table in expected_tables:
-            self.assertIn(f"analyze {table};", indexes.lower())
+        primary_keys = {item["name"].removesuffix("_pkey") for item in indexes if item["name"].endswith("_pkey")}
+        self.assertEqual(primary_keys, expected_tables)
 
         scripts = list((profile_root / "sql").glob("[0-9][0-9]_*.sql"))
         scripts.extend((profile_root / "sql").glob("select_*.sql"))

@@ -1,16 +1,12 @@
 api_version: pg_workload/v1
 name: pagila
 schema: pagila
-description: Mixed OLTP workload based on the Pagila DVD-rental schema.
+description: Synthetic Pagila OLTP with a 50/25/20/5 read/insert/update/delete mix.
 requires_write: true
 prepare:
   steps:
-    - type: sql
-      path: sql/pagila-schema.sql
     - type: generator
       path: generator.py
-    - type: sql
-      command: "REFRESH MATERIALIZED VIEW pagila.rental_by_category; ANALYZE pagila.customer;"
 jobs:
   - name: main
     type: pgbench
@@ -21,6 +17,15 @@ jobs:
     clients: 2
     threads: 2
     transactions: 5
+    scripts:
+      - path: sql/01_select.sql
+        weight: 50
+      - path: sql/02_insert.sql
+        weight: 25
+      - path: sql/03_update.sql
+        weight: 20
+      - path: sql/04_delete.sql
+        weight: 5
   - name: analyze_customer
     type: psql
     interval: 60

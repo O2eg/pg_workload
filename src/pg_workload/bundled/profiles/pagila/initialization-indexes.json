@@ -1,0 +1,262 @@
+[
+  {
+    "name": "actor_pkey",
+    "sql": "CREATE UNIQUE INDEX actor_pkey ON pagila.actor (actor_id);"
+  },
+  {
+    "name": "address_pkey",
+    "sql": "CREATE UNIQUE INDEX address_pkey ON pagila.address (address_id);"
+  },
+  {
+    "name": "category_pkey",
+    "sql": "CREATE UNIQUE INDEX category_pkey ON pagila.category (category_id);"
+  },
+  {
+    "name": "city_pkey",
+    "sql": "CREATE UNIQUE INDEX city_pkey ON pagila.city (city_id);"
+  },
+  {
+    "name": "country_pkey",
+    "sql": "CREATE UNIQUE INDEX country_pkey ON pagila.country (country_id);"
+  },
+  {
+    "name": "customer_pkey",
+    "sql": "CREATE UNIQUE INDEX customer_pkey ON pagila.customer (customer_id);"
+  },
+  {
+    "name": "film_actor_pkey",
+    "sql": "CREATE UNIQUE INDEX film_actor_pkey ON pagila.film_actor (actor_id, film_id);"
+  },
+  {
+    "name": "film_category_pkey",
+    "sql": "CREATE UNIQUE INDEX film_category_pkey ON pagila.film_category (film_id, category_id);"
+  },
+  {
+    "name": "film_pkey",
+    "sql": "CREATE UNIQUE INDEX film_pkey ON pagila.film (film_id);"
+  },
+  {
+    "name": "inventory_pkey",
+    "sql": "CREATE UNIQUE INDEX inventory_pkey ON pagila.inventory (inventory_id);"
+  },
+  {
+    "name": "language_pkey",
+    "sql": "CREATE UNIQUE INDEX language_pkey ON pagila.language (language_id);"
+  },
+  {
+    "name": "rental_pkey",
+    "sql": "CREATE UNIQUE INDEX rental_pkey ON pagila.rental (rental_id);"
+  },
+  {
+    "name": "staff_pkey",
+    "sql": "CREATE UNIQUE INDEX staff_pkey ON pagila.staff (staff_id);"
+  },
+  {
+    "name": "store_pkey",
+    "sql": "CREATE UNIQUE INDEX store_pkey ON pagila.store (store_id);"
+  },
+  {
+    "name": "film_fulltext_idx",
+    "sql": "CREATE INDEX film_fulltext_idx ON pagila.film USING gist (fulltext);"
+  },
+  {
+    "name": "idx_actor_last_name",
+    "sql": "CREATE INDEX idx_actor_last_name ON pagila.actor USING btree (last_name);"
+  },
+  {
+    "name": "idx_fk_address_id",
+    "sql": "CREATE INDEX idx_fk_address_id ON pagila.customer USING btree (address_id);"
+  },
+  {
+    "name": "idx_fk_city_id",
+    "sql": "CREATE INDEX idx_fk_city_id ON pagila.address USING btree (city_id);"
+  },
+  {
+    "name": "idx_fk_country_id",
+    "sql": "CREATE INDEX idx_fk_country_id ON pagila.city USING btree (country_id);"
+  },
+  {
+    "name": "idx_fk_film_id",
+    "sql": "CREATE INDEX idx_fk_film_id ON pagila.film_actor USING btree (film_id);"
+  },
+  {
+    "name": "idx_fk_inventory_id",
+    "sql": "CREATE INDEX idx_fk_inventory_id ON pagila.rental USING btree (inventory_id);"
+  },
+  {
+    "name": "idx_fk_language_id",
+    "sql": "CREATE INDEX idx_fk_language_id ON pagila.film USING btree (language_id);"
+  },
+  {
+    "name": "idx_fk_original_language_id",
+    "sql": "CREATE INDEX idx_fk_original_language_id ON pagila.film USING btree (original_language_id);"
+  },
+  {
+    "name": "idx_fk_payment_p2022_01_customer_id",
+    "sql": "CREATE INDEX idx_fk_payment_p2022_01_customer_id ON pagila.payment_p2022_01 USING btree (customer_id);"
+  },
+  {
+    "name": "idx_fk_payment_p2022_01_staff_id",
+    "sql": "CREATE INDEX idx_fk_payment_p2022_01_staff_id ON pagila.payment_p2022_01 USING btree (staff_id);"
+  },
+  {
+    "name": "idx_fk_payment_p2022_02_customer_id",
+    "sql": "CREATE INDEX idx_fk_payment_p2022_02_customer_id ON pagila.payment_p2022_02 USING btree (customer_id);"
+  },
+  {
+    "name": "idx_fk_payment_p2022_02_staff_id",
+    "sql": "CREATE INDEX idx_fk_payment_p2022_02_staff_id ON pagila.payment_p2022_02 USING btree (staff_id);"
+  },
+  {
+    "name": "idx_fk_payment_p2022_03_customer_id",
+    "sql": "CREATE INDEX idx_fk_payment_p2022_03_customer_id ON pagila.payment_p2022_03 USING btree (customer_id);"
+  },
+  {
+    "name": "idx_fk_payment_p2022_03_staff_id",
+    "sql": "CREATE INDEX idx_fk_payment_p2022_03_staff_id ON pagila.payment_p2022_03 USING btree (staff_id);"
+  },
+  {
+    "name": "idx_fk_payment_p2022_04_customer_id",
+    "sql": "CREATE INDEX idx_fk_payment_p2022_04_customer_id ON pagila.payment_p2022_04 USING btree (customer_id);"
+  },
+  {
+    "name": "idx_fk_payment_p2022_04_staff_id",
+    "sql": "CREATE INDEX idx_fk_payment_p2022_04_staff_id ON pagila.payment_p2022_04 USING btree (staff_id);"
+  },
+  {
+    "name": "idx_fk_payment_p2022_05_customer_id",
+    "sql": "CREATE INDEX idx_fk_payment_p2022_05_customer_id ON pagila.payment_p2022_05 USING btree (customer_id);"
+  },
+  {
+    "name": "idx_fk_payment_p2022_05_staff_id",
+    "sql": "CREATE INDEX idx_fk_payment_p2022_05_staff_id ON pagila.payment_p2022_05 USING btree (staff_id);"
+  },
+  {
+    "name": "idx_fk_payment_p2022_06_customer_id",
+    "sql": "CREATE INDEX idx_fk_payment_p2022_06_customer_id ON pagila.payment_p2022_06 USING btree (customer_id);"
+  },
+  {
+    "name": "idx_fk_payment_p2022_06_staff_id",
+    "sql": "CREATE INDEX idx_fk_payment_p2022_06_staff_id ON pagila.payment_p2022_06 USING btree (staff_id);"
+  },
+  {
+    "name": "idx_fk_store_id",
+    "sql": "CREATE INDEX idx_fk_store_id ON pagila.customer USING btree (store_id);"
+  },
+  {
+    "name": "idx_last_name",
+    "sql": "CREATE INDEX idx_last_name ON pagila.customer USING btree (last_name);"
+  },
+  {
+    "name": "idx_store_id_film_id",
+    "sql": "CREATE INDEX idx_store_id_film_id ON pagila.inventory USING btree (store_id, film_id);"
+  },
+  {
+    "name": "idx_title",
+    "sql": "CREATE INDEX idx_title ON pagila.film USING btree (title);"
+  },
+  {
+    "name": "idx_unq_manager_staff_id",
+    "sql": "CREATE UNIQUE INDEX idx_unq_manager_staff_id ON pagila.store USING btree (manager_staff_id);"
+  },
+  {
+    "name": "idx_unq_rental_rental_date_inventory_id_customer_id",
+    "sql": "CREATE UNIQUE INDEX idx_unq_rental_rental_date_inventory_id_customer_id ON pagila.rental USING btree (rental_date, inventory_id, customer_id);"
+  },
+  {
+    "name": "payment_p2022_01_customer_id_idx",
+    "sql": "CREATE INDEX payment_p2022_01_customer_id_idx ON pagila.payment_p2022_01 USING btree (customer_id);"
+  },
+  {
+    "name": "payment_p2022_02_customer_id_idx",
+    "sql": "CREATE INDEX payment_p2022_02_customer_id_idx ON pagila.payment_p2022_02 USING btree (customer_id);"
+  },
+  {
+    "name": "payment_p2022_03_customer_id_idx",
+    "sql": "CREATE INDEX payment_p2022_03_customer_id_idx ON pagila.payment_p2022_03 USING btree (customer_id);"
+  },
+  {
+    "name": "payment_p2022_04_customer_id_idx",
+    "sql": "CREATE INDEX payment_p2022_04_customer_id_idx ON pagila.payment_p2022_04 USING btree (customer_id);"
+  },
+  {
+    "name": "payment_p2022_05_customer_id_idx",
+    "sql": "CREATE INDEX payment_p2022_05_customer_id_idx ON pagila.payment_p2022_05 USING btree (customer_id);"
+  },
+  {
+    "name": "payment_p2022_06_customer_id_idx",
+    "sql": "CREATE INDEX payment_p2022_06_customer_id_idx ON pagila.payment_p2022_06 USING btree (customer_id);"
+  },
+  {
+    "name": "rental_category",
+    "sql": "CREATE UNIQUE INDEX rental_category ON pagila.rental_by_category USING btree (category);"
+  },
+  {
+    "name": "idx_fk_rental_customer_id",
+    "sql": "CREATE INDEX idx_fk_rental_customer_id ON pagila.rental USING btree (customer_id);"
+  },
+  {
+    "name": "idx_fk_inventory_film_id",
+    "sql": "CREATE INDEX idx_fk_inventory_film_id ON pagila.inventory USING btree (film_id);"
+  },
+  {
+    "name": "idx_fk_film_category_category_id",
+    "sql": "CREATE INDEX idx_fk_film_category_category_id ON pagila.film_category USING btree (category_id);"
+  },
+  {
+    "name": "payment_p2022_01_rental_id_idx",
+    "sql": "CREATE INDEX payment_p2022_01_rental_id_idx ON pagila.payment_p2022_01 USING btree (rental_id);"
+  },
+  {
+    "name": "payment_p2022_02_rental_id_idx",
+    "sql": "CREATE INDEX payment_p2022_02_rental_id_idx ON pagila.payment_p2022_02 USING btree (rental_id);"
+  },
+  {
+    "name": "payment_p2022_03_rental_id_idx",
+    "sql": "CREATE INDEX payment_p2022_03_rental_id_idx ON pagila.payment_p2022_03 USING btree (rental_id);"
+  },
+  {
+    "name": "payment_p2022_04_rental_id_idx",
+    "sql": "CREATE INDEX payment_p2022_04_rental_id_idx ON pagila.payment_p2022_04 USING btree (rental_id);"
+  },
+  {
+    "name": "payment_p2022_05_rental_id_idx",
+    "sql": "CREATE INDEX payment_p2022_05_rental_id_idx ON pagila.payment_p2022_05 USING btree (rental_id);"
+  },
+  {
+    "name": "payment_p2022_06_rental_id_idx",
+    "sql": "CREATE INDEX payment_p2022_06_rental_id_idx ON pagila.payment_p2022_06 USING btree (rental_id);"
+  },
+  {
+    "name": "payment_p2022_07_rental_id_idx",
+    "sql": "CREATE INDEX payment_p2022_07_rental_id_idx ON pagila.payment_p2022_07 USING btree (rental_id);"
+  },
+  {
+    "name": "payment_p2022_01_pkey",
+    "sql": "CREATE UNIQUE INDEX payment_p2022_01_pkey ON pagila.payment_p2022_01 (payment_date, payment_id)"
+  },
+  {
+    "name": "payment_p2022_02_pkey",
+    "sql": "CREATE UNIQUE INDEX payment_p2022_02_pkey ON pagila.payment_p2022_02 (payment_date, payment_id)"
+  },
+  {
+    "name": "payment_p2022_03_pkey",
+    "sql": "CREATE UNIQUE INDEX payment_p2022_03_pkey ON pagila.payment_p2022_03 (payment_date, payment_id)"
+  },
+  {
+    "name": "payment_p2022_04_pkey",
+    "sql": "CREATE UNIQUE INDEX payment_p2022_04_pkey ON pagila.payment_p2022_04 (payment_date, payment_id)"
+  },
+  {
+    "name": "payment_p2022_05_pkey",
+    "sql": "CREATE UNIQUE INDEX payment_p2022_05_pkey ON pagila.payment_p2022_05 (payment_date, payment_id)"
+  },
+  {
+    "name": "payment_p2022_06_pkey",
+    "sql": "CREATE UNIQUE INDEX payment_p2022_06_pkey ON pagila.payment_p2022_06 (payment_date, payment_id)"
+  },
+  {
+    "name": "payment_p2022_07_pkey",
+    "sql": "CREATE UNIQUE INDEX payment_p2022_07_pkey ON pagila.payment_p2022_07 (payment_date, payment_id)"
+  }
+]

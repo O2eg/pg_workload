@@ -393,8 +393,8 @@ class DockerPostgres18SmokeTest(unittest.TestCase):
             time.sleep(1)
         self.fail(f"Timed out waiting for SQL result {expected!r}; last output: {last_output!r}")
 
-    def assert_imdb_scripts_hit_generated_rows(self):
-        sql_dir = self.smoke_root / "data" / "imdb" / "sql"
+    def assert_imdb_scripts_hit_generated_rows(self, *, root=None, dbname=WORKLOAD_DB):
+        sql_dir = (root or self.smoke_root) / "data" / "imdb" / "sql"
         scripts = sorted(sql_dir.glob("[0-9][0-9]_*.sql")) + sorted(
             sql_dir.glob("select_*.sql"), key=lambda path: int(path.stem.split("_")[1])
         )
@@ -422,7 +422,7 @@ class DockerPostgres18SmokeTest(unittest.TestCase):
                     "-U",
                     WORKLOAD_USER,
                     "-d",
-                    WORKLOAD_DB,
+                    dbname,
                     "-f",
                     str(path),
                 ],
@@ -462,8 +462,156 @@ class DockerPostgres18SmokeTest(unittest.TestCase):
             "--scale",
             "0.001",
             "--resource-disk-max-used-pct",
-            "99",
+            os.environ.get("WORKLOAD_TEST_DISK_MAX_USED_PCT", "99"),
         ]
+
+    def test_movie_profiles_batched_loading_and_repeated_runs(self):
+        root = self.smoke_root / "movie_profiles"
+        self.workload.initialize_project(root)
+        chmod_readable(root)
+        dbname = "movie_profiles_db"
+        target = self.target_args(root=root, dbname=dbname)
+        self.run_workload(["prepare-db", *target, "--recreate"])
+        self.run_workload(["install", *target, "--profile", "pagila,imdb"], timeout=600)
+
+        def query(sql):
+            code, output = self.exec_admin_sql(dbname, sql)
+            self.assertEqual(code, 0, output)
+            return output.strip()
+
+        def fingerprint():
+            return query("""
+                CREATE TEMP TABLE fingerprints (name text, hash text);
+                DO $$ DECLARE t record; BEGIN
+                    FOR t IN SELECT schemaname, tablename FROM pg_tables
+                        WHERE schemaname IN ('pagila', 'imdb') LOOP
+                        EXECUTE format(
+                            'INSERT INTO fingerprints SELECT %L, md5(string_agg(value, '''' ORDER BY value)) '
+                            'FROM (SELECT (to_jsonb(r) - ''last_update'')::text AS value FROM ONLY %I.%I r) s',
+                            t.schemaname || '.' || t.tablename, t.schemaname, t.tablename);
+                    END LOOP;
+                END $$;
+                SELECT name, hash FROM fingerprints ORDER BY name;
+            """)
+
+        before = fingerprint()
+        env = self.workload_env()
+        env.update(
+            {
+                "PGHOST": "127.0.0.1",
+                "PGPORT": "5432",
+                "PGDATABASE": dbname,
+                "PGUSER": WORKLOAD_USER,
+                "PGPASSWORD": WORKLOAD_PASSWORD,
+                "PG_WORKLOAD_PSQL": str(self.bin_dir / "psql"),
+            }
+        )
+        for profile in ("pagila", "imdb"):
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    str(root / "data" / profile / "generator.py"),
+                    "--scale",
+                    "0.001",
+                    "--batch-rows",
+                    "137",
+                ],
+                env=env,
+                cwd=root,
+                capture_output=True,
+                text=True,
+                timeout=600,
+            )
+            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertEqual(before, fingerprint(), "batch size changed generated values")
+        self.assertEqual(query("SELECT count(*) FROM pg_index WHERE NOT indisvalid;"), "0")
+        self.assertEqual(query("SELECT count(*) FROM pg_constraint WHERE NOT convalidated;"), "0")
+        self.assertEqual(
+            query("""
+            SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+            WHERE n.nspname IN ('pagila','imdb') AND c.relkind='r' AND c.relpersistence<>'p';
+        """),
+            "0",
+        )
+        self.assertEqual(
+            query("""
+            SELECT avg(people)>2.9 FROM (
+                SELECT count(DISTINCT person_id) AS people FROM imdb.cast_info
+                WHERE movie_id>22 GROUP BY movie_id
+            ) s;
+        """),
+            "t",
+        )
+        self.assertEqual(
+            query("""
+            SELECT count(DISTINCT info) FROM imdb.movie_info
+            WHERE movie_id>22 AND info_type_id=4;
+        """),
+            "4",
+        )
+        self.assertEqual(
+            query("""
+            SELECT count(DISTINCT info) FROM imdb.movie_info
+            WHERE movie_id>22 AND info_type_id=7;
+        """),
+            "4",
+        )
+        self.assertEqual(
+            query("""
+            SELECT EXISTS (SELECT 1 FROM imdb.movie_info mi JOIN imdb.cast_info ci
+                ON ci.movie_id=mi.movie_id WHERE mi.movie_id>22 AND mi.info_type_id=6 AND ci.nr_order<=3);
+        """),
+            "t",
+        )
+        self.assert_imdb_scripts_hit_generated_rows(root=root, dbname=dbname)
+
+        def pgbench(script, *, clients=2, transactions=5, protocol="simple"):
+            proc = subprocess.run(
+                [
+                    str(self.bin_dir / "pgbench"),
+                    "-n",
+                    "-c",
+                    str(clients),
+                    "-j",
+                    "2" if clients > 1 else "1",
+                    "-t",
+                    str(transactions),
+                    "-M",
+                    protocol,
+                    "-f",
+                    str(script),
+                ],
+                env=env,
+                cwd=root,
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+            self.assertNotIn("Run was aborted", proc.stderr)
+
+        sql_dir = root / "data" / "pagila" / "sql"
+        # Exercise the normally rare branches with concurrent clients, including sequence gaps.
+        insert = (sql_dir / "02_insert.sql").read_text(encoding="utf-8")
+        forced = sql_dir / "forced_insert.sql"
+        forced.write_text(re.sub(r"(\\set chance_\w+) random\(1, 1000?\)", r"\1 1", insert), encoding="utf-8")
+        query("SELECT setval('pagila.staff_staff_id_seq', 10000);")
+        for protocol in ("simple", "prepared"):
+            pgbench(forced, clients=16, transactions=15, protocol=protocol)
+            for filename in ("01_select.sql", "02_insert.sql", "03_update.sql", "04_delete.sql"):
+                pgbench(sql_dir / filename, protocol=protocol)
+            self.run_workload(["run", *target, "--profile", "pagila", "--pgbench-transactions", "10"])
+
+        query("UPDATE pagila.payment SET amount=999.99;")
+        pgbench(sql_dir / "03_update.sql")
+        self.assertNotEqual(query("SET search_path=pagila; SELECT get_customer_balance(1, '2022-07-20');"), "")
+        query("TRUNCATE pagila.payment, pagila.rental;")
+        pgbench(sql_dir / "04_delete.sql", clients=1, transactions=1)
+        pgbench(sql_dir / "03_update.sql", clients=1, transactions=1)
+        pgbench(sql_dir / "02_insert.sql", clients=1, transactions=1)
+        self.assertEqual(query("SELECT count(*) FROM pagila.rental;"), "1")
+        pgbench(sql_dir / "04_delete.sql", clients=1, transactions=1)
+        self.assertEqual(query("SELECT count(*) FROM pagila.rental;"), "0")
 
     def test_postgres18_container_runs_all_smoke_profiles(self):
         profiles = self.workload.load_profiles(self.smoke_root)

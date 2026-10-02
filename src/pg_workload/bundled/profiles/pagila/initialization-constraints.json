@@ -1,0 +1,351 @@
+[
+  {
+    "name": "actor_pkey",
+    "sql": "ALTER TABLE pagila.actor ADD CONSTRAINT actor_pkey PRIMARY KEY USING INDEX actor_pkey;"
+  },
+  {
+    "name": "address_pkey",
+    "sql": "ALTER TABLE pagila.address ADD CONSTRAINT address_pkey PRIMARY KEY USING INDEX address_pkey;"
+  },
+  {
+    "name": "category_pkey",
+    "sql": "ALTER TABLE pagila.category ADD CONSTRAINT category_pkey PRIMARY KEY USING INDEX category_pkey;"
+  },
+  {
+    "name": "city_pkey",
+    "sql": "ALTER TABLE pagila.city ADD CONSTRAINT city_pkey PRIMARY KEY USING INDEX city_pkey;"
+  },
+  {
+    "name": "country_pkey",
+    "sql": "ALTER TABLE pagila.country ADD CONSTRAINT country_pkey PRIMARY KEY USING INDEX country_pkey;"
+  },
+  {
+    "name": "customer_pkey",
+    "sql": "ALTER TABLE pagila.customer ADD CONSTRAINT customer_pkey PRIMARY KEY USING INDEX customer_pkey;"
+  },
+  {
+    "name": "film_actor_pkey",
+    "sql": "ALTER TABLE pagila.film_actor ADD CONSTRAINT film_actor_pkey PRIMARY KEY USING INDEX film_actor_pkey;"
+  },
+  {
+    "name": "film_category_pkey",
+    "sql": "ALTER TABLE pagila.film_category ADD CONSTRAINT film_category_pkey PRIMARY KEY USING INDEX film_category_pkey;"
+  },
+  {
+    "name": "film_pkey",
+    "sql": "ALTER TABLE pagila.film ADD CONSTRAINT film_pkey PRIMARY KEY USING INDEX film_pkey;"
+  },
+  {
+    "name": "inventory_pkey",
+    "sql": "ALTER TABLE pagila.inventory ADD CONSTRAINT inventory_pkey PRIMARY KEY USING INDEX inventory_pkey;"
+  },
+  {
+    "name": "language_pkey",
+    "sql": "ALTER TABLE pagila.language ADD CONSTRAINT language_pkey PRIMARY KEY USING INDEX language_pkey;"
+  },
+  {
+    "name": "rental_pkey",
+    "sql": "ALTER TABLE pagila.rental ADD CONSTRAINT rental_pkey PRIMARY KEY USING INDEX rental_pkey;"
+  },
+  {
+    "name": "staff_pkey",
+    "sql": "ALTER TABLE pagila.staff ADD CONSTRAINT staff_pkey PRIMARY KEY USING INDEX staff_pkey;"
+  },
+  {
+    "name": "store_pkey",
+    "sql": "ALTER TABLE pagila.store ADD CONSTRAINT store_pkey PRIMARY KEY USING INDEX store_pkey;"
+  },
+  {
+    "name": "address_city_id_fkey",
+    "sql": "ALTER TABLE ONLY pagila.address\n    ADD CONSTRAINT address_city_id_fkey FOREIGN KEY (city_id) REFERENCES pagila.city(city_id) ON UPDATE CASCADE ON DELETE RESTRICT;",
+    "depends_on": [
+      "city_pkey"
+    ]
+  },
+  {
+    "name": "city_country_id_fkey",
+    "sql": "ALTER TABLE ONLY pagila.city\n    ADD CONSTRAINT city_country_id_fkey FOREIGN KEY (country_id) REFERENCES pagila.country(country_id) ON UPDATE CASCADE ON DELETE RESTRICT;",
+    "depends_on": [
+      "country_pkey"
+    ]
+  },
+  {
+    "name": "customer_address_id_fkey",
+    "sql": "ALTER TABLE ONLY pagila.customer\n    ADD CONSTRAINT customer_address_id_fkey FOREIGN KEY (address_id) REFERENCES pagila.address(address_id) ON UPDATE CASCADE ON DELETE RESTRICT;",
+    "depends_on": [
+      "address_pkey"
+    ]
+  },
+  {
+    "name": "customer_store_id_fkey",
+    "sql": "ALTER TABLE ONLY pagila.customer\n    ADD CONSTRAINT customer_store_id_fkey FOREIGN KEY (store_id) REFERENCES pagila.store(store_id) ON UPDATE CASCADE ON DELETE RESTRICT;",
+    "depends_on": [
+      "store_pkey"
+    ]
+  },
+  {
+    "name": "film_actor_actor_id_fkey",
+    "sql": "ALTER TABLE ONLY pagila.film_actor\n    ADD CONSTRAINT film_actor_actor_id_fkey FOREIGN KEY (actor_id) REFERENCES pagila.actor(actor_id) ON UPDATE CASCADE ON DELETE RESTRICT;",
+    "depends_on": [
+      "actor_pkey"
+    ]
+  },
+  {
+    "name": "film_actor_film_id_fkey",
+    "sql": "ALTER TABLE ONLY pagila.film_actor\n    ADD CONSTRAINT film_actor_film_id_fkey FOREIGN KEY (film_id) REFERENCES pagila.film(film_id) ON UPDATE CASCADE ON DELETE RESTRICT;",
+    "depends_on": [
+      "film_pkey"
+    ]
+  },
+  {
+    "name": "film_category_category_id_fkey",
+    "sql": "ALTER TABLE ONLY pagila.film_category\n    ADD CONSTRAINT film_category_category_id_fkey FOREIGN KEY (category_id) REFERENCES pagila.category(category_id) ON UPDATE CASCADE ON DELETE RESTRICT;",
+    "depends_on": [
+      "category_pkey"
+    ]
+  },
+  {
+    "name": "film_category_film_id_fkey",
+    "sql": "ALTER TABLE ONLY pagila.film_category\n    ADD CONSTRAINT film_category_film_id_fkey FOREIGN KEY (film_id) REFERENCES pagila.film(film_id) ON UPDATE CASCADE ON DELETE RESTRICT;",
+    "depends_on": [
+      "film_pkey"
+    ]
+  },
+  {
+    "name": "film_language_id_fkey",
+    "sql": "ALTER TABLE ONLY pagila.film\n    ADD CONSTRAINT film_language_id_fkey FOREIGN KEY (language_id) REFERENCES pagila.language(language_id) ON UPDATE CASCADE ON DELETE RESTRICT;",
+    "depends_on": [
+      "language_pkey"
+    ]
+  },
+  {
+    "name": "film_original_language_id_fkey",
+    "sql": "ALTER TABLE ONLY pagila.film\n    ADD CONSTRAINT film_original_language_id_fkey FOREIGN KEY (original_language_id) REFERENCES pagila.language(language_id) ON UPDATE CASCADE ON DELETE RESTRICT;",
+    "depends_on": [
+      "language_pkey"
+    ]
+  },
+  {
+    "name": "inventory_film_id_fkey",
+    "sql": "ALTER TABLE ONLY pagila.inventory\n    ADD CONSTRAINT inventory_film_id_fkey FOREIGN KEY (film_id) REFERENCES pagila.film(film_id) ON UPDATE CASCADE ON DELETE RESTRICT;",
+    "depends_on": [
+      "film_pkey"
+    ]
+  },
+  {
+    "name": "inventory_store_id_fkey",
+    "sql": "ALTER TABLE ONLY pagila.inventory\n    ADD CONSTRAINT inventory_store_id_fkey FOREIGN KEY (store_id) REFERENCES pagila.store(store_id) ON UPDATE CASCADE ON DELETE RESTRICT;",
+    "depends_on": [
+      "store_pkey"
+    ]
+  },
+  {
+    "name": "payment_p2022_01_customer_id_fkey",
+    "sql": "ALTER TABLE ONLY pagila.payment_p2022_01\n    ADD CONSTRAINT payment_p2022_01_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES pagila.customer(customer_id);",
+    "depends_on": [
+      "customer_pkey"
+    ]
+  },
+  {
+    "name": "payment_p2022_01_rental_id_fkey",
+    "sql": "ALTER TABLE ONLY pagila.payment_p2022_01\n    ADD CONSTRAINT payment_p2022_01_rental_id_fkey FOREIGN KEY (rental_id) REFERENCES pagila.rental(rental_id);",
+    "depends_on": [
+      "rental_pkey"
+    ]
+  },
+  {
+    "name": "payment_p2022_01_staff_id_fkey",
+    "sql": "ALTER TABLE ONLY pagila.payment_p2022_01\n    ADD CONSTRAINT payment_p2022_01_staff_id_fkey FOREIGN KEY (staff_id) REFERENCES pagila.staff(staff_id);",
+    "depends_on": [
+      "staff_pkey"
+    ]
+  },
+  {
+    "name": "payment_p2022_02_customer_id_fkey",
+    "sql": "ALTER TABLE ONLY pagila.payment_p2022_02\n    ADD CONSTRAINT payment_p2022_02_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES pagila.customer(customer_id);",
+    "depends_on": [
+      "customer_pkey"
+    ]
+  },
+  {
+    "name": "payment_p2022_02_rental_id_fkey",
+    "sql": "ALTER TABLE ONLY pagila.payment_p2022_02\n    ADD CONSTRAINT payment_p2022_02_rental_id_fkey FOREIGN KEY (rental_id) REFERENCES pagila.rental(rental_id);",
+    "depends_on": [
+      "rental_pkey"
+    ]
+  },
+  {
+    "name": "payment_p2022_02_staff_id_fkey",
+    "sql": "ALTER TABLE ONLY pagila.payment_p2022_02\n    ADD CONSTRAINT payment_p2022_02_staff_id_fkey FOREIGN KEY (staff_id) REFERENCES pagila.staff(staff_id);",
+    "depends_on": [
+      "staff_pkey"
+    ]
+  },
+  {
+    "name": "payment_p2022_03_customer_id_fkey",
+    "sql": "ALTER TABLE ONLY pagila.payment_p2022_03\n    ADD CONSTRAINT payment_p2022_03_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES pagila.customer(customer_id);",
+    "depends_on": [
+      "customer_pkey"
+    ]
+  },
+  {
+    "name": "payment_p2022_03_rental_id_fkey",
+    "sql": "ALTER TABLE ONLY pagila.payment_p2022_03\n    ADD CONSTRAINT payment_p2022_03_rental_id_fkey FOREIGN KEY (rental_id) REFERENCES pagila.rental(rental_id);",
+    "depends_on": [
+      "rental_pkey"
+    ]
+  },
+  {
+    "name": "payment_p2022_03_staff_id_fkey",
+    "sql": "ALTER TABLE ONLY pagila.payment_p2022_03\n    ADD CONSTRAINT payment_p2022_03_staff_id_fkey FOREIGN KEY (staff_id) REFERENCES pagila.staff(staff_id);",
+    "depends_on": [
+      "staff_pkey"
+    ]
+  },
+  {
+    "name": "payment_p2022_04_customer_id_fkey",
+    "sql": "ALTER TABLE ONLY pagila.payment_p2022_04\n    ADD CONSTRAINT payment_p2022_04_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES pagila.customer(customer_id);",
+    "depends_on": [
+      "customer_pkey"
+    ]
+  },
+  {
+    "name": "payment_p2022_04_rental_id_fkey",
+    "sql": "ALTER TABLE ONLY pagila.payment_p2022_04\n    ADD CONSTRAINT payment_p2022_04_rental_id_fkey FOREIGN KEY (rental_id) REFERENCES pagila.rental(rental_id);",
+    "depends_on": [
+      "rental_pkey"
+    ]
+  },
+  {
+    "name": "payment_p2022_04_staff_id_fkey",
+    "sql": "ALTER TABLE ONLY pagila.payment_p2022_04\n    ADD CONSTRAINT payment_p2022_04_staff_id_fkey FOREIGN KEY (staff_id) REFERENCES pagila.staff(staff_id);",
+    "depends_on": [
+      "staff_pkey"
+    ]
+  },
+  {
+    "name": "payment_p2022_05_customer_id_fkey",
+    "sql": "ALTER TABLE ONLY pagila.payment_p2022_05\n    ADD CONSTRAINT payment_p2022_05_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES pagila.customer(customer_id);",
+    "depends_on": [
+      "customer_pkey"
+    ]
+  },
+  {
+    "name": "payment_p2022_05_rental_id_fkey",
+    "sql": "ALTER TABLE ONLY pagila.payment_p2022_05\n    ADD CONSTRAINT payment_p2022_05_rental_id_fkey FOREIGN KEY (rental_id) REFERENCES pagila.rental(rental_id);",
+    "depends_on": [
+      "rental_pkey"
+    ]
+  },
+  {
+    "name": "payment_p2022_05_staff_id_fkey",
+    "sql": "ALTER TABLE ONLY pagila.payment_p2022_05\n    ADD CONSTRAINT payment_p2022_05_staff_id_fkey FOREIGN KEY (staff_id) REFERENCES pagila.staff(staff_id);",
+    "depends_on": [
+      "staff_pkey"
+    ]
+  },
+  {
+    "name": "payment_p2022_06_customer_id_fkey",
+    "sql": "ALTER TABLE ONLY pagila.payment_p2022_06\n    ADD CONSTRAINT payment_p2022_06_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES pagila.customer(customer_id);",
+    "depends_on": [
+      "customer_pkey"
+    ]
+  },
+  {
+    "name": "payment_p2022_06_rental_id_fkey",
+    "sql": "ALTER TABLE ONLY pagila.payment_p2022_06\n    ADD CONSTRAINT payment_p2022_06_rental_id_fkey FOREIGN KEY (rental_id) REFERENCES pagila.rental(rental_id);",
+    "depends_on": [
+      "rental_pkey"
+    ]
+  },
+  {
+    "name": "payment_p2022_06_staff_id_fkey",
+    "sql": "ALTER TABLE ONLY pagila.payment_p2022_06\n    ADD CONSTRAINT payment_p2022_06_staff_id_fkey FOREIGN KEY (staff_id) REFERENCES pagila.staff(staff_id);",
+    "depends_on": [
+      "staff_pkey"
+    ]
+  },
+  {
+    "name": "rental_customer_id_fkey",
+    "sql": "ALTER TABLE ONLY pagila.rental\n    ADD CONSTRAINT rental_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES pagila.customer(customer_id) ON UPDATE CASCADE ON DELETE RESTRICT;",
+    "depends_on": [
+      "customer_pkey"
+    ]
+  },
+  {
+    "name": "rental_inventory_id_fkey",
+    "sql": "ALTER TABLE ONLY pagila.rental\n    ADD CONSTRAINT rental_inventory_id_fkey FOREIGN KEY (inventory_id) REFERENCES pagila.inventory(inventory_id) ON UPDATE CASCADE ON DELETE RESTRICT;",
+    "depends_on": [
+      "inventory_pkey"
+    ]
+  },
+  {
+    "name": "rental_staff_id_fkey",
+    "sql": "ALTER TABLE ONLY pagila.rental\n    ADD CONSTRAINT rental_staff_id_fkey FOREIGN KEY (staff_id) REFERENCES pagila.staff(staff_id) ON UPDATE CASCADE ON DELETE RESTRICT;",
+    "depends_on": [
+      "staff_pkey"
+    ]
+  },
+  {
+    "name": "staff_address_id_fkey",
+    "sql": "ALTER TABLE ONLY pagila.staff\n    ADD CONSTRAINT staff_address_id_fkey FOREIGN KEY (address_id) REFERENCES pagila.address(address_id) ON UPDATE CASCADE ON DELETE RESTRICT;",
+    "depends_on": [
+      "address_pkey"
+    ]
+  },
+  {
+    "name": "staff_store_id_fkey",
+    "sql": "ALTER TABLE ONLY pagila.staff\n    ADD CONSTRAINT staff_store_id_fkey FOREIGN KEY (store_id) REFERENCES pagila.store(store_id);",
+    "depends_on": [
+      "store_pkey"
+    ]
+  },
+  {
+    "name": "store_address_id_fkey",
+    "sql": "ALTER TABLE ONLY pagila.store\n    ADD CONSTRAINT store_address_id_fkey FOREIGN KEY (address_id) REFERENCES pagila.address(address_id) ON UPDATE CASCADE ON DELETE RESTRICT;",
+    "depends_on": [
+      "address_pkey"
+    ]
+  },
+  {
+    "name": "payment_p2022_01_pkey",
+    "sql": "ALTER TABLE pagila.payment_p2022_01 ADD CONSTRAINT payment_p2022_01_pkey PRIMARY KEY USING INDEX payment_p2022_01_pkey"
+  },
+  {
+    "name": "payment_p2022_02_pkey",
+    "sql": "ALTER TABLE pagila.payment_p2022_02 ADD CONSTRAINT payment_p2022_02_pkey PRIMARY KEY USING INDEX payment_p2022_02_pkey"
+  },
+  {
+    "name": "payment_p2022_03_pkey",
+    "sql": "ALTER TABLE pagila.payment_p2022_03 ADD CONSTRAINT payment_p2022_03_pkey PRIMARY KEY USING INDEX payment_p2022_03_pkey"
+  },
+  {
+    "name": "payment_p2022_04_pkey",
+    "sql": "ALTER TABLE pagila.payment_p2022_04 ADD CONSTRAINT payment_p2022_04_pkey PRIMARY KEY USING INDEX payment_p2022_04_pkey"
+  },
+  {
+    "name": "payment_p2022_05_pkey",
+    "sql": "ALTER TABLE pagila.payment_p2022_05 ADD CONSTRAINT payment_p2022_05_pkey PRIMARY KEY USING INDEX payment_p2022_05_pkey"
+  },
+  {
+    "name": "payment_p2022_06_pkey",
+    "sql": "ALTER TABLE pagila.payment_p2022_06 ADD CONSTRAINT payment_p2022_06_pkey PRIMARY KEY USING INDEX payment_p2022_06_pkey"
+  },
+  {
+    "name": "payment_p2022_07_pkey",
+    "sql": "ALTER TABLE pagila.payment_p2022_07 ADD CONSTRAINT payment_p2022_07_pkey PRIMARY KEY USING INDEX payment_p2022_07_pkey"
+  },
+  {
+    "name": "payment_pkey",
+    "depends_on": [
+      "payment_p2022_01_pkey",
+      "payment_p2022_02_pkey",
+      "payment_p2022_03_pkey",
+      "payment_p2022_04_pkey",
+      "payment_p2022_05_pkey",
+      "payment_p2022_06_pkey",
+      "payment_p2022_07_pkey"
+    ],
+    "sql": "DO $$ BEGIN IF current_setting('server_version_num')::integer >= 110000 THEN ALTER TABLE pagila.payment ADD CONSTRAINT payment_pkey PRIMARY KEY (payment_date, payment_id); END IF; END $$;"
+  }
+]

@@ -5,12 +5,8 @@ description: Rich synthetic movie-domain workload with 21-table join and filter 
 requires_write: false
 prepare:
   steps:
-    - type: sql
-      path: sql/imdb-schema.sql
     - type: generator
       path: generator.py
-    - type: sql
-      path: sql/imdb-fkindexes.sql
 jobs:
   - name: analytical_selects
     type: pgbench

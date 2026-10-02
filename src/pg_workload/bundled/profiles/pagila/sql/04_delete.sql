@@ -1,27 +1,17 @@
-set search_path = 'pagila';
+SET search_path = pagila, public;
 
--- Get random existing rental_id with fallback
-WITH sample_rental AS (
-    SELECT rental_id FROM rental TABLESAMPLE SYSTEM (0.1) WHERE rental_id IS NOT NULL
-    UNION ALL
-    SELECT rental_id FROM rental WHERE rental_id IS NOT NULL
-    LIMIT 1
-)
-SELECT rental_id FROM sample_rental LIMIT 1 \gset
-\set v_rnd_rental_id :rental_id
+-- Remove an existing rental with its payments, including rows from earlier runs.
+-- Indexed successor lookup handles gaps; SKIP LOCKED avoids concurrent deleters
+-- picking the same rental. An empty or fully locked table is a valid no-op.
+SELECT * FROM bench_bounds \gset
+\set rental_id random(:min_rental, :max_rental)
 
--- Set delete threshold using pgbench's native random
-\set should_delete random(1, 100)
-\if :should_delete < 20
 BEGIN;
-    -- Single delete operation using JOIN
-    DELETE FROM payment p
-    USING rental r
-    WHERE p.rental_id = r.rental_id
-    AND r.rental_id = :v_rnd_rental_id;
-
-    -- Direct delete using sampled ID
-    DELETE FROM rental
-    WHERE rental_id = :v_rnd_rental_id;
+SELECT COALESCE(
+    (SELECT rental_id FROM rental WHERE rental_id >= :rental_id ORDER BY rental_id LIMIT 1 FOR UPDATE SKIP LOCKED),
+    (SELECT rental_id FROM rental ORDER BY rental_id LIMIT 1 FOR UPDATE SKIP LOCKED),
+    0
+) AS rental_id \gset
+DELETE FROM payment WHERE rental_id = :rental_id;
+DELETE FROM rental WHERE rental_id = :rental_id;
 COMMIT;
-\endif

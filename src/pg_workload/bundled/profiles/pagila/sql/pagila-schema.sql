@@ -3,14 +3,23 @@
 --
 
 SET statement_timeout = 0;
+
 SET lock_timeout = 0;
+
 SET idle_in_transaction_session_timeout = 0;
+
 SET client_encoding = 'UTF8';
+
 SET standard_conforming_strings = on;
+
 SELECT pg_catalog.set_config('search_path', '', false);
+
 SET check_function_bodies = false;
+
 SET xmloption = content;
+
 SET client_min_messages = warning;
+
 SET row_security = off;
 
 --
@@ -19,7 +28,6 @@ SET row_security = off;
 
 -- *not* creating schema, since initdb creates it
 
-DROP SCHEMA IF EXISTS pagila CASCADE;
 
 CREATE SCHEMA pagila;
 
@@ -28,8 +36,6 @@ CREATE SCHEMA pagila;
 --
 
 CREATE DOMAIN pagila."bıgınt" AS bigint;
-
-
 
 --
 -- Name: mpaa_rating; Type: TYPE; Schema: public; Owner: postgres
@@ -43,14 +49,12 @@ CREATE TYPE pagila.mpaa_rating AS ENUM (
     'NC-17'
 );
 
-
 --
 -- Name: year; Type: DOMAIN; Schema: public; Owner: postgres
 --
 
 CREATE DOMAIN pagila.year AS integer
 	CONSTRAINT year_check CHECK (((VALUE >= 1901) AND (VALUE <= 2155)));
-
 
 --
 -- Name: _group_concat(text, text); Type: FUNCTION; Schema: public; Owner: postgres
@@ -66,13 +70,11 @@ SELECT CASE
 END
 $_$;
 
-
-
 --
 -- Name: film_in_stock(integer, integer); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION pagila.film_in_stock(p_film_id integer, p_store_id integer, OUT p_film_count integer) RETURNS SETOF integer
+CREATE FUNCTION pagila.film_in_stock(p_film_id bigint, p_store_id bigint, OUT p_film_count bigint) RETURNS SETOF bigint
     LANGUAGE sql
     AS $_$
      SELECT inventory_id
@@ -82,12 +84,11 @@ CREATE FUNCTION pagila.film_in_stock(p_film_id integer, p_store_id integer, OUT 
      AND inventory_in_stock(inventory_id);
 $_$;
 
-
 --
 -- Name: film_not_in_stock(integer, integer); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION pagila.film_not_in_stock(p_film_id integer, p_store_id integer, OUT p_film_count integer) RETURNS SETOF integer
+CREATE FUNCTION pagila.film_not_in_stock(p_film_id bigint, p_store_id bigint, OUT p_film_count bigint) RETURNS SETOF bigint
     LANGUAGE sql
     AS $_$
     SELECT inventory_id
@@ -97,19 +98,21 @@ CREATE FUNCTION pagila.film_not_in_stock(p_film_id integer, p_store_id integer, 
     AND NOT inventory_in_stock(inventory_id);
 $_$;
 
-
 --
 -- Name: get_customer_balance(integer, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE OR REPLACE FUNCTION pagila.get_customer_balance(p_customer_id integer, p_effective_date timestamp with time zone)
+-- pg_perf_bench: rental fees and payments are accumulated as unbounded numeric.
+-- The upstream DECIMAL(5,2) locals overflow ("numeric field overflow") for the
+-- heaviest customers of the skewed generator, which aborts the pgbench client.
+CREATE OR REPLACE FUNCTION pagila.get_customer_balance(p_customer_id bigint, p_effective_date timestamp with time zone)
 RETURNS numeric
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    v_rentfees DECIMAL(5,2);
+    v_rentfees numeric;
     v_overfees INTEGER;
-    v_payments DECIMAL(5,2);
+    v_payments numeric;
 BEGIN
     SELECT COALESCE(SUM(film.rental_rate),0) INTO v_rentfees
     FROM film, inventory, rental
@@ -140,16 +143,15 @@ BEGIN
 END
 $$;
 
-
 --
 -- Name: inventory_held_by_customer(integer); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION pagila.inventory_held_by_customer(p_inventory_id integer) RETURNS integer
+CREATE FUNCTION pagila.inventory_held_by_customer(p_inventory_id bigint) RETURNS bigint
     LANGUAGE plpgsql
     AS $$
 DECLARE
-    v_customer_id INTEGER;
+    v_customer_id bigint;
 BEGIN
 
   SELECT customer_id INTO v_customer_id
@@ -160,12 +162,11 @@ BEGIN
   RETURN v_customer_id;
 END $$;
 
-
 --
 -- Name: inventory_in_stock(integer); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION pagila.inventory_in_stock(p_inventory_id integer) RETURNS boolean
+CREATE FUNCTION pagila.inventory_in_stock(p_inventory_id bigint) RETURNS boolean
     LANGUAGE plpgsql
     AS $$
 DECLARE
@@ -195,7 +196,6 @@ BEGIN
     END IF;
 END $$;
 
-
 --
 -- Name: last_day(timestamp with time zone); Type: FUNCTION; Schema: public; Owner: postgres
 --
@@ -211,7 +211,6 @@ CREATE FUNCTION pagila.last_day(timestamp with time zone) RETURNS date
     END
 $_$;
 
-
 --
 -- Name: last_updated(); Type: FUNCTION; Schema: public; Owner: postgres
 --
@@ -224,7 +223,6 @@ BEGIN
     RETURN NEW;
 END $$;
 
-
 --
 -- Name: customer_customer_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
@@ -236,7 +234,6 @@ CREATE SEQUENCE pagila.customer_customer_id_seq
     NO MAXVALUE
     CACHE 1;
 
-
 SET default_tablespace = '';
 
 --
@@ -244,18 +241,17 @@ SET default_tablespace = '';
 --
 
 CREATE TABLE pagila.customer (
-    customer_id integer DEFAULT nextval('pagila.customer_customer_id_seq'::regclass) NOT NULL,
-    store_id integer NOT NULL,
+    customer_id bigint DEFAULT nextval('pagila.customer_customer_id_seq'::regclass) NOT NULL,
+    store_id bigint NOT NULL,
     first_name text NOT NULL,
     last_name text NOT NULL,
     email text,
-    address_id integer NOT NULL,
+    address_id bigint NOT NULL,
     activebool boolean DEFAULT true NOT NULL,
     create_date date DEFAULT CURRENT_DATE NOT NULL,
     last_update timestamp with time zone DEFAULT now(),
     active integer
 );
-
 
 --
 -- Name: rewards_report(integer, numeric); Type: FUNCTION; Schema: public; Owner: postgres
@@ -286,7 +282,7 @@ BEGIN
     /*
     Create a temporary storage area for Customer IDs.
     */
-    CREATE TEMPORARY TABLE tmpCustomer (customer_id INTEGER NOT NULL PRIMARY KEY);
+    CREATE TEMPORARY TABLE tmpCustomer (customer_id bigint NOT NULL PRIMARY KEY);
 
     /*
     Find all customers meeting the monthly purchase requirements
@@ -343,7 +339,7 @@ CREATE SEQUENCE pagila.actor_actor_id_seq
 --
 
 CREATE TABLE pagila.actor (
-    actor_id integer DEFAULT nextval('pagila.actor_actor_id_seq'::regclass) NOT NULL,
+    actor_id bigint DEFAULT nextval('pagila.actor_actor_id_seq'::regclass) NOT NULL,
     first_name text NOT NULL,
     last_name text NOT NULL,
     last_update timestamp with time zone DEFAULT now() NOT NULL
@@ -365,7 +361,7 @@ CREATE SEQUENCE pagila.category_category_id_seq
 --
 
 CREATE TABLE pagila.category (
-    category_id integer DEFAULT nextval('pagila.category_category_id_seq'::regclass) NOT NULL,
+    category_id bigint DEFAULT nextval('pagila.category_category_id_seq'::regclass) NOT NULL,
     name text NOT NULL,
     last_update timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -386,12 +382,12 @@ CREATE SEQUENCE pagila.film_film_id_seq
 --
 
 CREATE TABLE pagila.film (
-    film_id integer DEFAULT nextval('pagila.film_film_id_seq'::regclass) NOT NULL,
+    film_id bigint DEFAULT nextval('pagila.film_film_id_seq'::regclass) NOT NULL,
     title text NOT NULL,
     description text,
     release_year pagila.year,
-    language_id integer NOT NULL,
-    original_language_id integer,
+    language_id bigint NOT NULL,
+    original_language_id bigint,
     rental_duration smallint DEFAULT 3 NOT NULL,
     rental_rate numeric(4,2) DEFAULT 4.99 NOT NULL,
     length smallint,
@@ -407,8 +403,8 @@ CREATE TABLE pagila.film (
 --
 
 CREATE TABLE pagila.film_actor (
-    actor_id integer NOT NULL,
-    film_id integer NOT NULL,
+    actor_id bigint NOT NULL,
+    film_id bigint NOT NULL,
     last_update timestamp with time zone DEFAULT now() NOT NULL
 );
 
@@ -417,8 +413,8 @@ CREATE TABLE pagila.film_actor (
 --
 
 CREATE TABLE pagila.film_category (
-    film_id integer NOT NULL,
-    category_id integer NOT NULL,
+    film_id bigint NOT NULL,
+    category_id bigint NOT NULL,
     last_update timestamp with time zone DEFAULT now() NOT NULL
 );
 
@@ -458,11 +454,11 @@ CREATE SEQUENCE pagila.address_address_id_seq
 --
 
 CREATE TABLE pagila.address (
-    address_id integer DEFAULT nextval('pagila.address_address_id_seq'::regclass) NOT NULL,
+    address_id bigint DEFAULT nextval('pagila.address_address_id_seq'::regclass) NOT NULL,
     address text NOT NULL,
     address2 text,
     district text NOT NULL,
-    city_id integer NOT NULL,
+    city_id bigint NOT NULL,
     postal_code text,
     phone text NOT NULL,
     last_update timestamp with time zone DEFAULT now() NOT NULL
@@ -484,9 +480,9 @@ CREATE SEQUENCE pagila.city_city_id_seq
 --
 
 CREATE TABLE pagila.city (
-    city_id integer DEFAULT nextval('pagila.city_city_id_seq'::regclass) NOT NULL,
+    city_id bigint DEFAULT nextval('pagila.city_city_id_seq'::regclass) NOT NULL,
     city text NOT NULL,
-    country_id integer NOT NULL,
+    country_id bigint NOT NULL,
     last_update timestamp with time zone DEFAULT now() NOT NULL
 );
 
@@ -506,7 +502,7 @@ CREATE SEQUENCE pagila.country_country_id_seq
 --
 
 CREATE TABLE pagila.country (
-    country_id integer DEFAULT nextval('pagila.country_country_id_seq'::regclass) NOT NULL,
+    country_id bigint DEFAULT nextval('pagila.country_country_id_seq'::regclass) NOT NULL,
     country text NOT NULL,
     last_update timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -569,9 +565,9 @@ CREATE SEQUENCE pagila.inventory_inventory_id_seq
 --
 
 CREATE TABLE pagila.inventory (
-    inventory_id integer DEFAULT nextval('pagila.inventory_inventory_id_seq'::regclass) NOT NULL,
-    film_id integer NOT NULL,
-    store_id integer NOT NULL,
+    inventory_id bigint DEFAULT nextval('pagila.inventory_inventory_id_seq'::regclass) NOT NULL,
+    film_id bigint NOT NULL,
+    store_id bigint NOT NULL,
     last_update timestamp with time zone DEFAULT now() NOT NULL
 );
 
@@ -591,7 +587,7 @@ CREATE SEQUENCE pagila.language_language_id_seq
 --
 
 CREATE TABLE pagila.language (
-    language_id integer DEFAULT nextval('pagila.language_language_id_seq'::regclass) NOT NULL,
+    language_id bigint DEFAULT nextval('pagila.language_language_id_seq'::regclass) NOT NULL,
     name character(20) NOT NULL,
     last_update timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -627,16 +623,15 @@ CREATE SEQUENCE pagila.payment_payment_id_seq
     NO MAXVALUE
     CACHE 1;
 
-
 --
 -- Name: payment; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE pagila.payment (
-    payment_id integer DEFAULT nextval('pagila.payment_payment_id_seq'::regclass) NOT NULL,
-    customer_id integer NOT NULL,
-    staff_id integer NOT NULL,
-    rental_id integer NOT NULL,
+    payment_id bigint DEFAULT nextval('pagila.payment_payment_id_seq'::regclass) NOT NULL,
+    customer_id bigint NOT NULL,
+    staff_id bigint NOT NULL,
+    rental_id bigint NOT NULL,
     amount numeric(5,2) NOT NULL,
     payment_date timestamp with time zone NOT NULL
 )
@@ -647,10 +642,10 @@ PARTITION BY RANGE (payment_date);
 --
 
 CREATE TABLE pagila.payment_p2022_01 (
-    payment_id integer DEFAULT nextval('pagila.payment_payment_id_seq'::regclass) NOT NULL,
-    customer_id integer NOT NULL,
-    staff_id integer NOT NULL,
-    rental_id integer NOT NULL,
+    payment_id bigint DEFAULT nextval('pagila.payment_payment_id_seq'::regclass) NOT NULL,
+    customer_id bigint NOT NULL,
+    staff_id bigint NOT NULL,
+    rental_id bigint NOT NULL,
     amount numeric(5,2) NOT NULL,
     payment_date timestamp with time zone NOT NULL
 );
@@ -660,10 +655,10 @@ CREATE TABLE pagila.payment_p2022_01 (
 --
 
 CREATE TABLE pagila.payment_p2022_02 (
-    payment_id integer DEFAULT nextval('pagila.payment_payment_id_seq'::regclass) NOT NULL,
-    customer_id integer NOT NULL,
-    staff_id integer NOT NULL,
-    rental_id integer NOT NULL,
+    payment_id bigint DEFAULT nextval('pagila.payment_payment_id_seq'::regclass) NOT NULL,
+    customer_id bigint NOT NULL,
+    staff_id bigint NOT NULL,
+    rental_id bigint NOT NULL,
     amount numeric(5,2) NOT NULL,
     payment_date timestamp with time zone NOT NULL
 );
@@ -673,10 +668,10 @@ CREATE TABLE pagila.payment_p2022_02 (
 --
 
 CREATE TABLE pagila.payment_p2022_03 (
-    payment_id integer DEFAULT nextval('pagila.payment_payment_id_seq'::regclass) NOT NULL,
-    customer_id integer NOT NULL,
-    staff_id integer NOT NULL,
-    rental_id integer NOT NULL,
+    payment_id bigint DEFAULT nextval('pagila.payment_payment_id_seq'::regclass) NOT NULL,
+    customer_id bigint NOT NULL,
+    staff_id bigint NOT NULL,
+    rental_id bigint NOT NULL,
     amount numeric(5,2) NOT NULL,
     payment_date timestamp with time zone NOT NULL
 );
@@ -686,10 +681,10 @@ CREATE TABLE pagila.payment_p2022_03 (
 --
 
 CREATE TABLE pagila.payment_p2022_04 (
-    payment_id integer DEFAULT nextval('pagila.payment_payment_id_seq'::regclass) NOT NULL,
-    customer_id integer NOT NULL,
-    staff_id integer NOT NULL,
-    rental_id integer NOT NULL,
+    payment_id bigint DEFAULT nextval('pagila.payment_payment_id_seq'::regclass) NOT NULL,
+    customer_id bigint NOT NULL,
+    staff_id bigint NOT NULL,
+    rental_id bigint NOT NULL,
     amount numeric(5,2) NOT NULL,
     payment_date timestamp with time zone NOT NULL
 );
@@ -699,10 +694,10 @@ CREATE TABLE pagila.payment_p2022_04 (
 --
 
 CREATE TABLE pagila.payment_p2022_05 (
-    payment_id integer DEFAULT nextval('pagila.payment_payment_id_seq'::regclass) NOT NULL,
-    customer_id integer NOT NULL,
-    staff_id integer NOT NULL,
-    rental_id integer NOT NULL,
+    payment_id bigint DEFAULT nextval('pagila.payment_payment_id_seq'::regclass) NOT NULL,
+    customer_id bigint NOT NULL,
+    staff_id bigint NOT NULL,
+    rental_id bigint NOT NULL,
     amount numeric(5,2) NOT NULL,
     payment_date timestamp with time zone NOT NULL
 );
@@ -712,10 +707,10 @@ CREATE TABLE pagila.payment_p2022_05 (
 --
 
 CREATE TABLE pagila.payment_p2022_06 (
-    payment_id integer DEFAULT nextval('pagila.payment_payment_id_seq'::regclass) NOT NULL,
-    customer_id integer NOT NULL,
-    staff_id integer NOT NULL,
-    rental_id integer NOT NULL,
+    payment_id bigint DEFAULT nextval('pagila.payment_payment_id_seq'::regclass) NOT NULL,
+    customer_id bigint NOT NULL,
+    staff_id bigint NOT NULL,
+    rental_id bigint NOT NULL,
     amount numeric(5,2) NOT NULL,
     payment_date timestamp with time zone NOT NULL
 );
@@ -725,10 +720,10 @@ CREATE TABLE pagila.payment_p2022_06 (
 --
 
 CREATE TABLE pagila.payment_p2022_07 (
-    payment_id integer DEFAULT nextval('pagila.payment_payment_id_seq'::regclass) NOT NULL,
-    customer_id integer NOT NULL,
-    staff_id integer NOT NULL,
-    rental_id integer NOT NULL,
+    payment_id bigint DEFAULT nextval('pagila.payment_payment_id_seq'::regclass) NOT NULL,
+    customer_id bigint NOT NULL,
+    staff_id bigint NOT NULL,
+    rental_id bigint NOT NULL,
     amount numeric(5,2) NOT NULL,
     payment_date timestamp with time zone NOT NULL
 );
@@ -749,12 +744,12 @@ CREATE SEQUENCE pagila.rental_rental_id_seq
 --
 
 CREATE TABLE pagila.rental (
-    rental_id integer DEFAULT nextval('pagila.rental_rental_id_seq'::regclass) NOT NULL,
+    rental_id bigint DEFAULT nextval('pagila.rental_rental_id_seq'::regclass) NOT NULL,
     rental_date timestamp with time zone NOT NULL,
-    inventory_id integer NOT NULL,
-    customer_id integer NOT NULL,
+    inventory_id bigint NOT NULL,
+    customer_id bigint NOT NULL,
     return_date timestamp with time zone,
-    staff_id integer NOT NULL,
+    staff_id bigint NOT NULL,
     last_update timestamp with time zone DEFAULT now() NOT NULL
 );
 
@@ -774,7 +769,6 @@ CREATE MATERIALIZED VIEW pagila.rental_by_category AS
   GROUP BY c.name
   ORDER BY (sum(p.amount)) DESC
   WITH NO DATA;
-
 
 --
 -- Name: sales_by_film_category; Type: VIEW; Schema: public; Owner: postgres
@@ -808,12 +802,12 @@ CREATE SEQUENCE pagila.staff_staff_id_seq
 --
 
 CREATE TABLE pagila.staff (
-    staff_id integer DEFAULT nextval('pagila.staff_staff_id_seq'::regclass) NOT NULL,
+    staff_id bigint DEFAULT nextval('pagila.staff_staff_id_seq'::regclass) NOT NULL,
     first_name text NOT NULL,
     last_name text NOT NULL,
-    address_id integer NOT NULL,
+    address_id bigint NOT NULL,
     email text,
-    store_id integer NOT NULL,
+    store_id bigint NOT NULL,
     active boolean DEFAULT true NOT NULL,
     username text NOT NULL,
     password text,
@@ -837,9 +831,9 @@ CREATE SEQUENCE pagila.store_store_id_seq
 --
 
 CREATE TABLE pagila.store (
-    store_id integer DEFAULT nextval('pagila.store_store_id_seq'::regclass) NOT NULL,
-    manager_staff_id integer NOT NULL,
-    address_id integer NOT NULL,
+    store_id bigint DEFAULT nextval('pagila.store_store_id_seq'::regclass) NOT NULL,
+    manager_staff_id bigint NOT NULL,
+    address_id bigint NOT NULL,
     last_update timestamp with time zone DEFAULT now() NOT NULL
 );
 
@@ -886,13 +880,11 @@ CREATE VIEW pagila.staff_list AS
 
 ALTER TABLE ONLY pagila.payment ATTACH PARTITION pagila.payment_p2022_01 FOR VALUES FROM ('2022-01-01 00:00:00+00') TO ('2022-02-01 00:00:00+00');
 
-
 --
 -- Name: payment_p2022_02; Type: TABLE ATTACH; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY pagila.payment ATTACH PARTITION pagila.payment_p2022_02 FOR VALUES FROM ('2022-02-01 00:00:00+00') TO ('2022-03-01 00:00:00+00');
-
 
 --
 -- Name: payment_p2022_03; Type: TABLE ATTACH; Schema: public; Owner: postgres
@@ -900,13 +892,11 @@ ALTER TABLE ONLY pagila.payment ATTACH PARTITION pagila.payment_p2022_02 FOR VAL
 
 ALTER TABLE ONLY pagila.payment ATTACH PARTITION pagila.payment_p2022_03 FOR VALUES FROM ('2022-03-01 00:00:00+00') TO ('2022-04-01 01:00:00+01');
 
-
 --
 -- Name: payment_p2022_04; Type: TABLE ATTACH; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY pagila.payment ATTACH PARTITION pagila.payment_p2022_04 FOR VALUES FROM ('2022-04-01 01:00:00+01') TO ('2022-05-01 01:00:00+01');
-
 
 --
 -- Name: payment_p2022_05; Type: TABLE ATTACH; Schema: public; Owner: postgres
@@ -914,13 +904,11 @@ ALTER TABLE ONLY pagila.payment ATTACH PARTITION pagila.payment_p2022_04 FOR VAL
 
 ALTER TABLE ONLY pagila.payment ATTACH PARTITION pagila.payment_p2022_05 FOR VALUES FROM ('2022-05-01 01:00:00+01') TO ('2022-06-01 01:00:00+01');
 
-
 --
 -- Name: payment_p2022_06; Type: TABLE ATTACH; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY pagila.payment ATTACH PARTITION pagila.payment_p2022_06 FOR VALUES FROM ('2022-06-01 01:00:00+01') TO ('2022-07-01 01:00:00+01');
-
 
 --
 -- Name: payment_p2022_07; Type: TABLE ATTACH; Schema: public; Owner: postgres
@@ -931,380 +919,6 @@ ALTER TABLE ONLY pagila.payment ATTACH PARTITION pagila.payment_p2022_07 FOR VAL
 -- PostgreSQL 10 cannot own a primary key on a partitioned parent.  Keep the
 -- same key columns by placing the constraint on every leaf there; PostgreSQL
 -- 11+ uses the parent constraint and propagates its indexes.
-DO $$
-DECLARE
-    leaf record;
-BEGIN
-    IF current_setting('server_version_num')::integer >= 110000 THEN
-        ALTER TABLE pagila.payment
-            ADD CONSTRAINT payment_pkey PRIMARY KEY (payment_date, payment_id);
-    ELSE
-        FOR leaf IN
-            SELECT n.nspname, c.relname
-            FROM pg_catalog.pg_inherits i
-            JOIN pg_catalog.pg_class c ON c.oid = i.inhrelid
-            JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
-            WHERE i.inhparent = 'pagila.payment'::regclass
-        LOOP
-            EXECUTE format(
-                'ALTER TABLE %I.%I ADD PRIMARY KEY (payment_date, payment_id)',
-                leaf.nspname,
-                leaf.relname
-            );
-        END LOOP;
-    END IF;
-END
-$$;
-
-
---
--- Name: actor actor_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.actor
-    ADD CONSTRAINT actor_pkey PRIMARY KEY (actor_id);
-
-
---
--- Name: address address_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.address
-    ADD CONSTRAINT address_pkey PRIMARY KEY (address_id);
-
-
---
--- Name: category category_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.category
-    ADD CONSTRAINT category_pkey PRIMARY KEY (category_id);
-
-
---
--- Name: city city_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.city
-    ADD CONSTRAINT city_pkey PRIMARY KEY (city_id);
-
-
---
--- Name: country country_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.country
-    ADD CONSTRAINT country_pkey PRIMARY KEY (country_id);
-
-
---
--- Name: customer customer_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.customer
-    ADD CONSTRAINT customer_pkey PRIMARY KEY (customer_id);
-
-
---
--- Name: film_actor film_actor_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.film_actor
-    ADD CONSTRAINT film_actor_pkey PRIMARY KEY (actor_id, film_id);
-
-
---
--- Name: film_category film_category_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.film_category
-    ADD CONSTRAINT film_category_pkey PRIMARY KEY (film_id, category_id);
-
-
---
--- Name: film film_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.film
-    ADD CONSTRAINT film_pkey PRIMARY KEY (film_id);
-
-
---
--- Name: inventory inventory_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.inventory
-    ADD CONSTRAINT inventory_pkey PRIMARY KEY (inventory_id);
-
-
---
--- Name: language language_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.language
-    ADD CONSTRAINT language_pkey PRIMARY KEY (language_id);
-
-
---
--- Name: rental rental_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.rental
-    ADD CONSTRAINT rental_pkey PRIMARY KEY (rental_id);
-
-
---
--- Name: staff staff_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.staff
-    ADD CONSTRAINT staff_pkey PRIMARY KEY (staff_id);
-
-
---
--- Name: store store_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.store
-    ADD CONSTRAINT store_pkey PRIMARY KEY (store_id);
-
-
---
--- Name: film_fulltext_idx; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX film_fulltext_idx ON pagila.film USING gist (fulltext);
-
-
---
--- Name: idx_actor_last_name; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_actor_last_name ON pagila.actor USING btree (last_name);
-
-
---
--- Name: idx_fk_address_id; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_fk_address_id ON pagila.customer USING btree (address_id);
-
-
---
--- Name: idx_fk_city_id; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_fk_city_id ON pagila.address USING btree (city_id);
-
-
---
--- Name: idx_fk_country_id; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_fk_country_id ON pagila.city USING btree (country_id);
-
-
---
--- Name: idx_fk_film_id; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_fk_film_id ON pagila.film_actor USING btree (film_id);
-
-
---
--- Name: idx_fk_inventory_id; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_fk_inventory_id ON pagila.rental USING btree (inventory_id);
-
-
---
--- Name: idx_fk_language_id; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_fk_language_id ON pagila.film USING btree (language_id);
-
-
---
--- Name: idx_fk_original_language_id; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_fk_original_language_id ON pagila.film USING btree (original_language_id);
-
-
---
--- Name: idx_fk_payment_p2022_01_customer_id; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_fk_payment_p2022_01_customer_id ON pagila.payment_p2022_01 USING btree (customer_id);
-
-
---
--- Name: idx_fk_payment_p2022_01_staff_id; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_fk_payment_p2022_01_staff_id ON pagila.payment_p2022_01 USING btree (staff_id);
-
-
---
--- Name: idx_fk_payment_p2022_02_customer_id; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_fk_payment_p2022_02_customer_id ON pagila.payment_p2022_02 USING btree (customer_id);
-
-
---
--- Name: idx_fk_payment_p2022_02_staff_id; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_fk_payment_p2022_02_staff_id ON pagila.payment_p2022_02 USING btree (staff_id);
-
-
---
--- Name: idx_fk_payment_p2022_03_customer_id; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_fk_payment_p2022_03_customer_id ON pagila.payment_p2022_03 USING btree (customer_id);
-
-
---
--- Name: idx_fk_payment_p2022_03_staff_id; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_fk_payment_p2022_03_staff_id ON pagila.payment_p2022_03 USING btree (staff_id);
-
-
---
--- Name: idx_fk_payment_p2022_04_customer_id; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_fk_payment_p2022_04_customer_id ON pagila.payment_p2022_04 USING btree (customer_id);
-
-
---
--- Name: idx_fk_payment_p2022_04_staff_id; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_fk_payment_p2022_04_staff_id ON pagila.payment_p2022_04 USING btree (staff_id);
-
-
---
--- Name: idx_fk_payment_p2022_05_customer_id; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_fk_payment_p2022_05_customer_id ON pagila.payment_p2022_05 USING btree (customer_id);
-
-
---
--- Name: idx_fk_payment_p2022_05_staff_id; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_fk_payment_p2022_05_staff_id ON pagila.payment_p2022_05 USING btree (staff_id);
-
-
---
--- Name: idx_fk_payment_p2022_06_customer_id; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_fk_payment_p2022_06_customer_id ON pagila.payment_p2022_06 USING btree (customer_id);
-
-
---
--- Name: idx_fk_payment_p2022_06_staff_id; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_fk_payment_p2022_06_staff_id ON pagila.payment_p2022_06 USING btree (staff_id);
-
-
---
--- Name: idx_fk_store_id; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_fk_store_id ON pagila.customer USING btree (store_id);
-
-
---
--- Name: idx_last_name; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_last_name ON pagila.customer USING btree (last_name);
-
-
---
--- Name: idx_store_id_film_id; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_store_id_film_id ON pagila.inventory USING btree (store_id, film_id);
-
-
---
--- Name: idx_title; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX idx_title ON pagila.film USING btree (title);
-
-
---
--- Name: idx_unq_manager_staff_id; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE UNIQUE INDEX idx_unq_manager_staff_id ON pagila.store USING btree (manager_staff_id);
-
-
---
--- Name: idx_unq_rental_rental_date_inventory_id_customer_id; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE UNIQUE INDEX idx_unq_rental_rental_date_inventory_id_customer_id ON pagila.rental USING btree (rental_date, inventory_id, customer_id);
-
-
---
--- Name: payment_p2022_01_customer_id_idx; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX payment_p2022_01_customer_id_idx ON pagila.payment_p2022_01 USING btree (customer_id);
-
-
---
--- Name: payment_p2022_02_customer_id_idx; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX payment_p2022_02_customer_id_idx ON pagila.payment_p2022_02 USING btree (customer_id);
-
-
---
--- Name: payment_p2022_03_customer_id_idx; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX payment_p2022_03_customer_id_idx ON pagila.payment_p2022_03 USING btree (customer_id);
-
-
---
--- Name: payment_p2022_04_customer_id_idx; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX payment_p2022_04_customer_id_idx ON pagila.payment_p2022_04 USING btree (customer_id);
-
-
---
--- Name: payment_p2022_05_customer_id_idx; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX payment_p2022_05_customer_id_idx ON pagila.payment_p2022_05 USING btree (customer_id);
-
-
---
--- Name: payment_p2022_06_customer_id_idx; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX payment_p2022_06_customer_id_idx ON pagila.payment_p2022_06 USING btree (customer_id);
-
-
---
--- Name: rental_category; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE UNIQUE INDEX rental_category ON pagila.rental_by_category USING btree (category);
 
 
 --
@@ -1313,13 +927,11 @@ CREATE UNIQUE INDEX rental_category ON pagila.rental_by_category USING btree (ca
 
 CREATE TRIGGER film_fulltext_trigger BEFORE INSERT OR UPDATE ON pagila.film FOR EACH ROW EXECUTE PROCEDURE tsvector_update_trigger('fulltext', 'pg_catalog.english', 'title', 'description');
 
-
 --
 -- Name: actor last_updated; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
 CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.actor FOR EACH ROW EXECUTE PROCEDURE pagila.last_updated();
-
 
 --
 -- Name: address last_updated; Type: TRIGGER; Schema: public; Owner: postgres
@@ -1327,13 +939,11 @@ CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.actor FOR EACH ROW EXECUTE P
 
 CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.address FOR EACH ROW EXECUTE PROCEDURE pagila.last_updated();
 
-
 --
 -- Name: category last_updated; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
 CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.category FOR EACH ROW EXECUTE PROCEDURE pagila.last_updated();
-
 
 --
 -- Name: city last_updated; Type: TRIGGER; Schema: public; Owner: postgres
@@ -1341,13 +951,11 @@ CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.category FOR EACH ROW EXECUT
 
 CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.city FOR EACH ROW EXECUTE PROCEDURE pagila.last_updated();
 
-
 --
 -- Name: country last_updated; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
 CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.country FOR EACH ROW EXECUTE PROCEDURE pagila.last_updated();
-
 
 --
 -- Name: customer last_updated; Type: TRIGGER; Schema: public; Owner: postgres
@@ -1355,13 +963,11 @@ CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.country FOR EACH ROW EXECUTE
 
 CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.customer FOR EACH ROW EXECUTE PROCEDURE pagila.last_updated();
 
-
 --
 -- Name: film last_updated; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
 CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.film FOR EACH ROW EXECUTE PROCEDURE pagila.last_updated();
-
 
 --
 -- Name: film_actor last_updated; Type: TRIGGER; Schema: public; Owner: postgres
@@ -1369,13 +975,11 @@ CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.film FOR EACH ROW EXECUTE PR
 
 CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.film_actor FOR EACH ROW EXECUTE PROCEDURE pagila.last_updated();
 
-
 --
 -- Name: film_category last_updated; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
 CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.film_category FOR EACH ROW EXECUTE PROCEDURE pagila.last_updated();
-
 
 --
 -- Name: inventory last_updated; Type: TRIGGER; Schema: public; Owner: postgres
@@ -1383,13 +987,11 @@ CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.film_category FOR EACH ROW E
 
 CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.inventory FOR EACH ROW EXECUTE PROCEDURE pagila.last_updated();
 
-
 --
 -- Name: language last_updated; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
 CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.language FOR EACH ROW EXECUTE PROCEDURE pagila.last_updated();
-
 
 --
 -- Name: rental last_updated; Type: TRIGGER; Schema: public; Owner: postgres
@@ -1397,13 +999,11 @@ CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.language FOR EACH ROW EXECUT
 
 CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.rental FOR EACH ROW EXECUTE PROCEDURE pagila.last_updated();
 
-
 --
 -- Name: staff last_updated; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
 CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.staff FOR EACH ROW EXECUTE PROCEDURE pagila.last_updated();
-
 
 --
 -- Name: store last_updated; Type: TRIGGER; Schema: public; Owner: postgres
@@ -1411,302 +1011,13 @@ CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.staff FOR EACH ROW EXECUTE P
 
 CREATE TRIGGER last_updated BEFORE UPDATE ON pagila.store FOR EACH ROW EXECUTE PROCEDURE pagila.last_updated();
 
-
---
--- Name: address address_city_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.address
-    ADD CONSTRAINT address_city_id_fkey FOREIGN KEY (city_id) REFERENCES pagila.city(city_id) ON UPDATE CASCADE ON DELETE RESTRICT;
-
-
---
--- Name: city city_country_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.city
-    ADD CONSTRAINT city_country_id_fkey FOREIGN KEY (country_id) REFERENCES pagila.country(country_id) ON UPDATE CASCADE ON DELETE RESTRICT;
-
-
---
--- Name: customer customer_address_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.customer
-    ADD CONSTRAINT customer_address_id_fkey FOREIGN KEY (address_id) REFERENCES pagila.address(address_id) ON UPDATE CASCADE ON DELETE RESTRICT;
-
-
---
--- Name: customer customer_store_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.customer
-    ADD CONSTRAINT customer_store_id_fkey FOREIGN KEY (store_id) REFERENCES pagila.store(store_id) ON UPDATE CASCADE ON DELETE RESTRICT;
-
-
---
--- Name: film_actor film_actor_actor_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.film_actor
-    ADD CONSTRAINT film_actor_actor_id_fkey FOREIGN KEY (actor_id) REFERENCES pagila.actor(actor_id) ON UPDATE CASCADE ON DELETE RESTRICT;
-
-
---
--- Name: film_actor film_actor_film_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.film_actor
-    ADD CONSTRAINT film_actor_film_id_fkey FOREIGN KEY (film_id) REFERENCES pagila.film(film_id) ON UPDATE CASCADE ON DELETE RESTRICT;
-
-
---
--- Name: film_category film_category_category_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.film_category
-    ADD CONSTRAINT film_category_category_id_fkey FOREIGN KEY (category_id) REFERENCES pagila.category(category_id) ON UPDATE CASCADE ON DELETE RESTRICT;
-
-
---
--- Name: film_category film_category_film_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.film_category
-    ADD CONSTRAINT film_category_film_id_fkey FOREIGN KEY (film_id) REFERENCES pagila.film(film_id) ON UPDATE CASCADE ON DELETE RESTRICT;
-
-
---
--- Name: film film_language_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.film
-    ADD CONSTRAINT film_language_id_fkey FOREIGN KEY (language_id) REFERENCES pagila.language(language_id) ON UPDATE CASCADE ON DELETE RESTRICT;
-
-
---
--- Name: film film_original_language_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.film
-    ADD CONSTRAINT film_original_language_id_fkey FOREIGN KEY (original_language_id) REFERENCES pagila.language(language_id) ON UPDATE CASCADE ON DELETE RESTRICT;
-
-
---
--- Name: inventory inventory_film_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.inventory
-    ADD CONSTRAINT inventory_film_id_fkey FOREIGN KEY (film_id) REFERENCES pagila.film(film_id) ON UPDATE CASCADE ON DELETE RESTRICT;
-
-
---
--- Name: inventory inventory_store_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.inventory
-    ADD CONSTRAINT inventory_store_id_fkey FOREIGN KEY (store_id) REFERENCES pagila.store(store_id) ON UPDATE CASCADE ON DELETE RESTRICT;
-
-
---
--- Name: payment_p2022_01 payment_p2022_01_customer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.payment_p2022_01
-    ADD CONSTRAINT payment_p2022_01_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES pagila.customer(customer_id);
-
-
---
--- Name: payment_p2022_01 payment_p2022_01_rental_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.payment_p2022_01
-    ADD CONSTRAINT payment_p2022_01_rental_id_fkey FOREIGN KEY (rental_id) REFERENCES pagila.rental(rental_id);
-
-
---
--- Name: payment_p2022_01 payment_p2022_01_staff_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.payment_p2022_01
-    ADD CONSTRAINT payment_p2022_01_staff_id_fkey FOREIGN KEY (staff_id) REFERENCES pagila.staff(staff_id);
-
-
---
--- Name: payment_p2022_02 payment_p2022_02_customer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.payment_p2022_02
-    ADD CONSTRAINT payment_p2022_02_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES pagila.customer(customer_id);
-
-
---
--- Name: payment_p2022_02 payment_p2022_02_rental_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.payment_p2022_02
-    ADD CONSTRAINT payment_p2022_02_rental_id_fkey FOREIGN KEY (rental_id) REFERENCES pagila.rental(rental_id);
-
-
---
--- Name: payment_p2022_02 payment_p2022_02_staff_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.payment_p2022_02
-    ADD CONSTRAINT payment_p2022_02_staff_id_fkey FOREIGN KEY (staff_id) REFERENCES pagila.staff(staff_id);
-
-
---
--- Name: payment_p2022_03 payment_p2022_03_customer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.payment_p2022_03
-    ADD CONSTRAINT payment_p2022_03_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES pagila.customer(customer_id);
-
-
---
--- Name: payment_p2022_03 payment_p2022_03_rental_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.payment_p2022_03
-    ADD CONSTRAINT payment_p2022_03_rental_id_fkey FOREIGN KEY (rental_id) REFERENCES pagila.rental(rental_id);
-
-
---
--- Name: payment_p2022_03 payment_p2022_03_staff_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.payment_p2022_03
-    ADD CONSTRAINT payment_p2022_03_staff_id_fkey FOREIGN KEY (staff_id) REFERENCES pagila.staff(staff_id);
-
-
---
--- Name: payment_p2022_04 payment_p2022_04_customer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.payment_p2022_04
-    ADD CONSTRAINT payment_p2022_04_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES pagila.customer(customer_id);
-
-
---
--- Name: payment_p2022_04 payment_p2022_04_rental_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.payment_p2022_04
-    ADD CONSTRAINT payment_p2022_04_rental_id_fkey FOREIGN KEY (rental_id) REFERENCES pagila.rental(rental_id);
-
-
---
--- Name: payment_p2022_04 payment_p2022_04_staff_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.payment_p2022_04
-    ADD CONSTRAINT payment_p2022_04_staff_id_fkey FOREIGN KEY (staff_id) REFERENCES pagila.staff(staff_id);
-
-
---
--- Name: payment_p2022_05 payment_p2022_05_customer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.payment_p2022_05
-    ADD CONSTRAINT payment_p2022_05_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES pagila.customer(customer_id);
-
-
---
--- Name: payment_p2022_05 payment_p2022_05_rental_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.payment_p2022_05
-    ADD CONSTRAINT payment_p2022_05_rental_id_fkey FOREIGN KEY (rental_id) REFERENCES pagila.rental(rental_id);
-
-
---
--- Name: payment_p2022_05 payment_p2022_05_staff_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.payment_p2022_05
-    ADD CONSTRAINT payment_p2022_05_staff_id_fkey FOREIGN KEY (staff_id) REFERENCES pagila.staff(staff_id);
-
-
---
--- Name: payment_p2022_06 payment_p2022_06_customer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.payment_p2022_06
-    ADD CONSTRAINT payment_p2022_06_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES pagila.customer(customer_id);
-
-
---
--- Name: payment_p2022_06 payment_p2022_06_rental_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.payment_p2022_06
-    ADD CONSTRAINT payment_p2022_06_rental_id_fkey FOREIGN KEY (rental_id) REFERENCES pagila.rental(rental_id);
-
-
---
--- Name: payment_p2022_06 payment_p2022_06_staff_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.payment_p2022_06
-    ADD CONSTRAINT payment_p2022_06_staff_id_fkey FOREIGN KEY (staff_id) REFERENCES pagila.staff(staff_id);
-
-
---
--- Name: rental rental_customer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.rental
-    ADD CONSTRAINT rental_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES pagila.customer(customer_id) ON UPDATE CASCADE ON DELETE RESTRICT;
-
-
---
--- Name: rental rental_inventory_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.rental
-    ADD CONSTRAINT rental_inventory_id_fkey FOREIGN KEY (inventory_id) REFERENCES pagila.inventory(inventory_id) ON UPDATE CASCADE ON DELETE RESTRICT;
-
-
---
--- Name: rental rental_staff_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.rental
-    ADD CONSTRAINT rental_staff_id_fkey FOREIGN KEY (staff_id) REFERENCES pagila.staff(staff_id) ON UPDATE CASCADE ON DELETE RESTRICT;
-
-
---
--- Name: staff staff_address_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.staff
-    ADD CONSTRAINT staff_address_id_fkey FOREIGN KEY (address_id) REFERENCES pagila.address(address_id) ON UPDATE CASCADE ON DELETE RESTRICT;
-
-
---
--- Name: staff staff_store_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.staff
-    ADD CONSTRAINT staff_store_id_fkey FOREIGN KEY (store_id) REFERENCES pagila.store(store_id);
-
-
---
--- Name: store store_address_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY pagila.store
-    ADD CONSTRAINT store_address_id_fkey FOREIGN KEY (address_id) REFERENCES pagila.address(address_id) ON UPDATE CASCADE ON DELETE RESTRICT;
-
-
 --
 -- Name: SCHEMA public; Type: ACL; Schema: -; Owner: postgres
 --
 
 REVOKE USAGE ON SCHEMA public FROM PUBLIC;
-GRANT ALL ON SCHEMA public TO PUBLIC;
 
+GRANT ALL ON SCHEMA public TO PUBLIC;
 
 --
 -- PostgreSQL database dump complete
