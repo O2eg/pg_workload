@@ -647,6 +647,14 @@ class DockerPostgres18SmokeTest(unittest.TestCase):
         )
 
         for profile_name in profile_names:
+            if profile_name == "simple_stock_spec_symbols":
+                profile = profiles[profile_name]
+                for job in profile.jobs:
+                    self.assertNotIn(
+                        "there is already a transaction in progress",
+                        profile.log_path(job).read_text(encoding="utf-8"),
+                        "Each stock operation must commit before the next BEGIN",
+                    )
             invariant_sql = PROFILE_INVARIANTS.get(profile_name)
             if invariant_sql is None:
                 self.fail(f"No post-run invariant defined for bundled profile {profile_name}")

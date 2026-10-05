@@ -35,7 +35,7 @@ SELECT
         WHEN random() < 0.3 THEN '-Infinity'::double precision -- -Infinity
         ELSE random() * 1e18 -- Very large floating-point value
     END AS "Fließkomma\r\nCRLF$#@&", -- Fließkomma$#@& (double precision)
-    'descr ' || generate_series(1,50) || ' <script>alert("XSS!");</script> <!-- SQL --> OR 1=1; DROP TABLE "Stock_$#@.&\n\r_items"; --' -- "ThisIsAVeryLongFieldNameThatWillBreakTheLayoutIfNotHandledPrope";
+    'descr ' || generate_series(1,50) || ' <script>alert("XSS!");</script> <!-- SQL --> OR 1=1; DROP TABLE "Stock_$#@.&\n\r_items"; --'; -- "ThisIsAVeryLongFieldNameThatWillBreakTheLayoutIfNotHandledPrope"
 COMMIT;
 
 BEGIN;
